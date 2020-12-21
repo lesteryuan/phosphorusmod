@@ -56,6 +56,11 @@ tss.explore <- function(df1, varout = NULL, runmod = T) {
 #    points(log(df1$chl)[incvec], log(df1$tp - df1$dtp)[incvec], pch = 16)
     df1 <- df1[!incvec, ]
 
+    set.seed(1)
+    isamp <- sample(nrow(df1))
+    nper<- nrow(df1/5)
+    for(
+
 
     datstan <- list(n = nrow(df1),
                     nlake = max(df1$lakenum),lakenum = df1$lakenum,
@@ -88,11 +93,11 @@ tss.explore <- function(df1, varout = NULL, runmod = T) {
 //            real<lower = 0> sigb;
 //            vector[nseas] etab;
 
-            real k[3];
+            real k[4];
 
             vector[3] mud;
-            vector<lower = 0>[3] sigd;
-            matrix[nlake,3] etad;
+//            vector<lower = 0>[3] sigd;
+//            matrix[nlake,3] etad;
 //            vector[nlake] etad2;
 //            vector[nlake] etad3;
 //            vector[nseas] etad4;
@@ -105,11 +110,11 @@ tss.explore <- function(df1, varout = NULL, runmod = T) {
             vector[n] u;
             vector[n] tp_mn;
             vector[n] vss_mn;
-            matrix[nlake, 3] d;
+//            matrix[nlake, 3] d;
 
             u = muu + etau*sigu;
 
-            for (i in 1:3) d[,i] = mud[i] + etad[,i]*sigd[i];
+//            for (i in 1:3) d[,i] = mud[i] + etad[,i]*sigd[i];
 
 //            b = mub + etab*sigb;
 
@@ -125,9 +130,9 @@ tss.explore <- function(df1, varout = NULL, runmod = T) {
             for (i in 1:n) {
                vss_mn[i] = exp(mub)*chl[i]^k[1] + exp(u[i]);
 
-               tp_mn[i] = exp(d[lakenum[i],1])*nvss[i] +
-                           exp(d[lakenum[i],2])*exp(u[i])^k[2] +
-                           exp(d[lakenum[i],3])*chl[i]^k[3] + dtp[i];
+               tp_mn[i] = exp(mud[1])*nvss[i]^k[2] +
+                           exp(mud[2])*exp(u[i])^k[3] +
+                           exp(mud[3])*chl[i]^k[4] + dtp[i];
             }
         }
         model {
@@ -138,12 +143,14 @@ tss.explore <- function(df1, varout = NULL, runmod = T) {
             mub ~ normal(0,3);
 
             mud ~ normal(0,3);
-            sigd ~ cauchy(0,3);
-            for (i in 1:3) etad[,i] ~ normal(0,1);
+//            sigd ~ cauchy(0,3);
+//            for (i in 1:3) etad[,i] ~ normal(0,1);
 
             k[1] ~ normal(0.807,0.012);
             k[2] ~ normal(1,1);
-            k[3] ~ normal(0.877,0.033);
+            k[3] ~ normal(1,1);
+            k[4] ~ normal(1,1);
+//            k[3] ~ normal(0.877,0.033);
 
 
             sigtp ~ cauchy(0,3);
@@ -151,6 +158,12 @@ tss.explore <- function(df1, varout = NULL, runmod = T) {
 
             vss ~ lognormal(log(vss_mn), sigvss);
             tp ~ lognormal(log(tp_mn), sigtp);
+        }
+        generated quantities {
+           vector[n] log_lik;
+            for (i in 1:n) {
+                log_lik[i] = lognormal_lpdf(tp[i] | log(tp_mn[i]), sigtp);
+            }
         }
     '
 
@@ -426,8 +439,8 @@ tss.explore <- function(df1, varout = NULL, runmod = T) {
     k <- apply(varout$k, 2, mean)
     df1$u <- apply(varout$u, 2, mean)
 }
-#fitout <- tss.explore(moi3.all, runmod = T)
-tss.explore(moi3.all, varout, runmod = F)
+fitout <- tss.explore(moi3.all, runmod = T)
+#tss.explore(moi3.all, varout, runmod = F)
 ## varout.tp.1 : b: time, all d: lake
 ## varout.tp.2 : b: time, d3 time
 ## varout.tp.3 : b: time, d3 time and lake.
