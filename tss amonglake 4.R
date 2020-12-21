@@ -57,23 +57,28 @@ tss.explore <- function(df1, varout = NULL, runmod = T) {
     df1 <- df1[!incvec, ]
 
     set.seed(1)
-    isamp <- sample(nrow(df1))
-    nper<- nrow(df1/5)
-    for(
+    require(loo)
+    nfold <- 5
+    ik <- kfold_split_random(nfold, nrow(df1))
+    print(ik)
 
 
-    datstan <- list(n = nrow(df1),
-                    nlake = max(df1$lakenum),lakenum = df1$lakenum,
-                    nseas = nperiod, seasnum = df1$seasnum,
-                    nvss = df1$nvss,
-                    tp = df1$tp,
-                    dtp = df1$dtp,
-                    vss = df1$vss,
-                    chl = df1$chl)
-    print(str(datstan))
+    for (jj in 1:nfold) {
+
+        dftemp2 <- df1[ik == jj,]
+        dftemp <- df1[ik != jj,]
+        datstan <- list(n = nrow(dftemp),
+                        nlake = max(dftemp$lakenum),lakenum = dftemp$lakenum,
+                        nseas = nperiod, seasnum = dftemp$seasnum,
+                        nvss = dftemp$nvss,
+                        tp = dftemp$tp,
+                        dtp = dftemp$dtp,
+                        vss = dftemp$vss,
+                        chl = dftemp$chl)
+        print(str(datstan))
 
 
-    modstan <- '
+   modstan <- '
         data {
             int n;
             int nlake;
@@ -159,12 +164,6 @@ tss.explore <- function(df1, varout = NULL, runmod = T) {
             vss ~ lognormal(log(vss_mn), sigvss);
             tp ~ lognormal(log(tp_mn), sigtp);
         }
-        generated quantities {
-           vector[n] log_lik;
-            for (i in 1:n) {
-                log_lik[i] = lognormal_lpdf(tp[i] | log(tp_mn[i]), sigtp);
-            }
-        }
     '
 
 
@@ -172,7 +171,7 @@ tss.explore <- function(df1, varout = NULL, runmod = T) {
         require(rstan)
         rstan_options(auto_write = TRUE)
 
-        nchains <- 6
+        nchains <- 3
         options(mc.cores = nchains)
 
 
@@ -180,11 +179,24 @@ tss.explore <- function(df1, varout = NULL, runmod = T) {
                     data = datstan, iter = 2000, chains = nchains,
                     warmup = 1000, thin= 2,
                     control = list(adapt_delta = 0.98, max_treedepth = 14))
+        varout <- extract(fit, pars = c("mud", "k", "mub"))
+
+        ## compute u for held out
+        mud <- apply(varout$mub, 2, mean)
+        k <- apply(varout$k, 2, mean)
+        mub <- mean(varout$mub)
+
+        u.pred <- dftemp2$vss - exp(mub)*dftemp2$chl^k[1]
+        tp.pred <- exp(mud[1])*dftemp2$nvss^k[2] +
+            exp(mud[2])*upred^k[3] +
+                exp(mud[3])*dftemp2$chl^k[4] + dftemp2$dtp
+        plot(log(tp.pred), log(dftemp2$tp))
+        stop()
+
         return(fit)
     }
+    }
 
-#    varout <- extract(fit, pars = c("b", "d1", "d2", "d3", "u", "k", "sigd",
-#                                    "mud"))
 
     df1$u <- apply(varout$u, 2, mean)
 #    b <- apply(varout$b, 2, mean)
