@@ -56,24 +56,8 @@ tss.explore <- function(df1, varout = NULL, runmod = T) {
 #    points(log(df1$chl)[incvec], log(df1$tp - df1$dtp)[incvec], pch = 16)
     df1 <- df1[!incvec, ]
 
-    set.seed(1)
-    isamp <- sample(nrow(df1))
-    nper<- nrow(df1/5)
-    for(
 
-
-    datstan <- list(n = nrow(df1),
-                    nlake = max(df1$lakenum),lakenum = df1$lakenum,
-                    nseas = nperiod, seasnum = df1$seasnum,
-                    nvss = df1$nvss,
-                    tp = df1$tp,
-                    dtp = df1$dtp,
-                    vss = df1$vss,
-                    chl = df1$chl)
-    print(str(datstan))
-
-
-    modstan <- '
+       modstan <- '
         data {
             int n;
             int nlake;
@@ -159,32 +143,74 @@ tss.explore <- function(df1, varout = NULL, runmod = T) {
             vss ~ lognormal(log(vss_mn), sigvss);
             tp ~ lognormal(log(tp_mn), sigtp);
         }
-        generated quantities {
-           vector[n] log_lik;
-            for (i in 1:n) {
-                log_lik[i] = lognormal_lpdf(tp[i] | log(tp_mn[i]), sigtp);
-            }
-        }
     '
 
+    set.seed(1)
+    require(loo)
+    nfold <- 5
+    ik <- kfold_split_random(nfold, nrow(df1))
+    print(ik)
 
-    if (runmod) {
-        require(rstan)
-        rstan_options(auto_write = TRUE)
+    for (jj in 1:nfold) {
 
-        nchains <- 6
-        options(mc.cores = nchains)
+        dftemp2 <- df1[ik == jj,]
+        dftemp <- df1[ik != jj,]
+        datstan <- list(n = nrow(dftemp),
+                        nlake = max(dftemp$lakenum),lakenum = dftemp$lakenum,
+                        nseas = nperiod, seasnum = dftemp$seasnum,
+                        nvss = dftemp$nvss,
+                        tp = dftemp$tp,
+                        dtp = dftemp$dtp,
+                        vss = dftemp$vss,
+                        chl = dftemp$chl)
+        print(str(datstan))
 
+        if (runmod) {
+            require(rstan)
+            rstan_options(auto_write = TRUE)
 
-        fit <- stan(model_code = modstan,
-                    data = datstan, iter = 2000, chains = nchains,
-                    warmup = 1000, thin= 2,
-                    control = list(adapt_delta = 0.98, max_treedepth = 14))
-        return(fit)
+            nchains <- 3
+            options(mc.cores = nchains)
+
+            fit <- stan(model_code = modstan,
+                        data = datstan, iter = 2000, chains = nchains,
+                        warmup = 1000, thin= 2,
+                        control = list(adapt_delta = 0.98, max_treedepth = 14))
+
+            varout <- extract(fit, pars = c("mud", "k", "mub"))
+            save(varout, file = "varout.rda")
+        }
+#        else {
+#            load("varout.rda")
+#        }
+
+        ## compute u for held out
+        mud <- apply(varout$mud, 2, mean)
+        k <- apply(varout$k, 2, mean)
+        mub <- mean(varout$mub)
+
+        upred <- dftemp2$vss - exp(mub)*dftemp2$chl^k[1]
+
+        ## set negative u values to zero to avoid NAs
+        incvec <- upred < 0
+        upred[incvec] <- 0
+        tp.pred <- exp(mud[1])*dftemp2$nvss^k[2] +
+            exp(mud[2])*upred^k[3] +
+                exp(mud[3])*dftemp2$chl^k[4] + dftemp2$dtp
+        matval <- data.frame(pred = log(tp.pred), obs = log(dftemp2$tp))
+
+#        plot(log(tp.pred), log(dftemp2$tp))
+#        points(log(tp.pred)[incvec], log(dftemp2$tp)[incvec], pch = 16)
+
+        if (jj == 1) {
+            matall <- matval
+        }
+        else {
+            matall <- rbind(matall, matval)
+        }
     }
 
-#    varout <- extract(fit, pars = c("b", "d1", "d2", "d3", "u", "k", "sigd",
-#                                    "mud"))
+    return(matall)
 
     df1$u <- apply(varout$u, 2, mean)
 #    b <- apply(varout$b, 2, mean)
@@ -409,9 +435,6 @@ tss.explore <- function(df1, varout = NULL, runmod = T) {
     print(nrow(df1))
     stop()
 
-
-
-
     dev.new()
     par(mar = c(4,4,1,1), mfrow = c(3,3))
     lake.u <- sort(unique(df1$lakenum))
@@ -436,10 +459,9 @@ tss.explore <- function(df1, varout = NULL, runmod = T) {
 
 
     stop()
-    k <- apply(varout$k, 2, mean)
-    df1$u <- apply(varout$u, 2, mean)
+
 }
-fitout <- tss.explore(moi3.all, runmod = T)
+matout <- tss.explore(moi3.all, runmod = T)
 #tss.explore(moi3.all, varout, runmod = F)
 ## varout.tp.1 : b: time, all d: lake
 ## varout.tp.2 : b: time, d3 time
