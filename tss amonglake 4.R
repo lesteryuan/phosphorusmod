@@ -4,6 +4,7 @@
 tss.explore <- function(df1, varout = NULL, runmod = T) {
 
     df1$vss <- as.numeric(as.character(df1$vss))
+
     df1$dtp <- as.numeric(as.character(df1$dtp))
     df1$nvss <- as.numeric(as.character(df1$nvss))
     df1$tp <- as.numeric(as.character(df1$tp))
@@ -48,8 +49,13 @@ tss.explore <- function(df1, varout = NULL, runmod = T) {
     for (i in varlist) df1[,i] <- df1[,i]/mn.val[i]
     df1$dtp <- df1$dtp/mn.val["tp"]
 
-    plot(log(df1$chl), log(df1$tp - df1$dtp))
-    abline(-1.24, 0.89)
+#    plot(log(df1$chl), log(df1$tp - df1$dtp))
+#    abline(-1.24, 0.89)
+    ## drop one big outlier
+    incvec <- log(df1$chl) < -2 & log(df1$tp - df1$dtp) < -3
+#    points(log(df1$chl)[incvec], log(df1$tp - df1$dtp)[incvec], pch = 16)
+    df1 <- df1[!incvec, ]
+
 
     datstan <- list(n = nrow(df1),
                     nlake = max(df1$lakenum),lakenum = df1$lakenum,
@@ -60,6 +66,7 @@ tss.explore <- function(df1, varout = NULL, runmod = T) {
                     vss = df1$vss,
                     chl = df1$chl)
     print(str(datstan))
+
 
     modstan <- '
         data {
@@ -81,7 +88,7 @@ tss.explore <- function(df1, varout = NULL, runmod = T) {
 //            real<lower = 0> sigb;
 //            vector[nseas] etab;
 
-            real k[2];
+            real k[3];
 
             vector[3] mud;
             vector<lower = 0>[3] sigd;
@@ -119,8 +126,8 @@ tss.explore <- function(df1, varout = NULL, runmod = T) {
                vss_mn[i] = exp(mub)*chl[i]^k[1] + exp(u[i]);
 
                tp_mn[i] = exp(d[lakenum[i],1])*nvss[i] +
-                           exp(d[lakenum[i],2])*exp(u[i]) +
-                           exp(d[lakenum[i],3])*chl[i]^k[2] + dtp[i];
+                           exp(d[lakenum[i],2])*exp(u[i])^k[2] +
+                           exp(d[lakenum[i],3])*chl[i]^k[3] + dtp[i];
             }
         }
         model {
@@ -136,6 +143,8 @@ tss.explore <- function(df1, varout = NULL, runmod = T) {
 
             k[1] ~ normal(0.807,0.012);
             k[2] ~ normal(1,1);
+            k[3] ~ normal(0.877,0.033);
+
 
             sigtp ~ cauchy(0,3);
             sigvss ~ cauchy(0,3);
@@ -150,13 +159,13 @@ tss.explore <- function(df1, varout = NULL, runmod = T) {
         require(rstan)
         rstan_options(auto_write = TRUE)
 
-        nchains <- 1
+        nchains <- 6
         options(mc.cores = nchains)
 
 
         fit <- stan(model_code = modstan,
-                    data = datstan, iter = 1000, chains = nchains,
-                    warmup = 500, thin= 1,
+                    data = datstan, iter = 2000, chains = nchains,
+                    warmup = 1000, thin= 2,
                     control = list(adapt_delta = 0.98, max_treedepth = 14))
         return(fit)
     }
@@ -165,32 +174,40 @@ tss.explore <- function(df1, varout = NULL, runmod = T) {
 #                                    "mud"))
 
     df1$u <- apply(varout$u, 2, mean)
-    b <- apply(varout$b, 2, mean)
-    d1 <- apply(varout$d1, 2, mean)
-    d2 <- apply(varout$d2, 2, mean)
-    d3 <- apply(varout$d3, c(2,3), mean)
+#    b <- apply(varout$b, 2, mean)
+#    d1 <- apply(varout$d1, 2, mean)
+#    d2 <- apply(varout$d2, 2, mean)
+#    d3 <- apply(varout$d3, c(2,3), mean)
     k <- apply(varout$k, 2, mean)
+    d <- apply(varout$d, c(2,3), mean)
 
-    df1$dtp <- as.numeric(as.character(df1$dtp))
-    df1$nvss <- as.numeric(as.character(df1$nvss))
 
-    tsspred <- exp(b[df1$seasnum])*df1$chl.sc^k[1] + exp(df1$u)
+#    tsspred <- exp(b[df1$seasnum])*df1$chl.sc^k[1] + exp(df1$u)
     tppred <- rep(NA, times = nrow(df1))
     for (i in 1:nrow(df1)) {
-        tppred[i] <- exp(d1[df1$lakenum[i]]) + exp(d2[df1$lakenum[i]])*exp(df1$u[i]) +
-            exp(d3[df1$lakenum[i], df1$seasnum[i]])*df1$chl.sc[i]^k[2]
+        tppred[i] <- exp(d[df1$lakenum[i],1])*df1$nvss[i] +
+            exp(d[df1$lakenum[i],2])*exp(df1$u[i])^k[2] +
+            exp(d[df1$lakenum[i],3])*df1$chl[i]^k[3]
     }
 
 
+
     dev.new()
-    par(mar = c(4,4,1,1), mfrow = c(1,2), mgp = c(2.3,1,0))
-    plot(log(tsspred), log(df1$tss.sc))
+    par(mar = c(4,4,1,1), mfrow = c(4,4), mgp = c(2.3,1,0))
+    for (i in 1:15) {
+        incvec <- df1$lakenum == i
+        plot(log(df1$chl[incvec]), log(df1$tp - df1$dtp)[incvec])
+        abline(d[i,3], k[3])
+        abline(d[i,3], 0.9, lty = "dashed")
+    }
+
+    plot(log(tppred), log(df1$tp - df1$dtp))
     abline(0,1)
-    plot(log(tppred), log(df1$tp.sc))
-    abline(0,1)
+
     rmsout <- function(x,y) sqrt(sum((x-y)^2)/length(x))
-    print(rmsout(log(tsspred), log(df1$tss.sc)))
-    print(rmsout(log(tppred), log(df1$tp.sc)))
+
+    print(rmsout(log(tppred), log(df1$tp - df1$dtp)))
+    stop()
     return(varout)
     stop()
 
@@ -409,8 +426,8 @@ tss.explore <- function(df1, varout = NULL, runmod = T) {
     k <- apply(varout$k, 2, mean)
     df1$u <- apply(varout$u, 2, mean)
 }
-fitout <- tss.explore(mo.all, runmod = T)
-#tss.explore(moi3.all, varout.tp3, runmod = F)
+#fitout <- tss.explore(moi3.all, runmod = T)
+tss.explore(moi3.all, varout, runmod = F)
 ## varout.tp.1 : b: time, all d: lake
 ## varout.tp.2 : b: time, d3 time
 ## varout.tp.3 : b: time, d3 time and lake.
