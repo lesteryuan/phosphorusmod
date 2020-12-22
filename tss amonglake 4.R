@@ -1,7 +1,7 @@
 # 1/23/2019: model TSS rather than nvss and vssn
 # 1/31/2019: model TSS with changing coef with chl
 ## 12.18.2020: Model seston
-tss.explore <- function(df1, varout = NULL, runmod = T) {
+tss.explore <- function(df1, varout = NULL, runmod = T, xvalid = F) {
 
     df1$vss <- as.numeric(as.character(df1$vss))
 
@@ -80,11 +80,10 @@ tss.explore <- function(df1, varout = NULL, runmod = T) {
             real k[4];
 
             vector[3] mud;
+            real<lower = 0> sigd;
+            vector[nlake] etad;
 //            vector<lower = 0>[3] sigd;
 //            matrix[nlake,3] etad;
-//            vector[nlake] etad2;
-//            vector[nlake] etad3;
-//            vector[nseas] etad4;
 
             real<lower = 0> sigvss;
             real<lower = 0> sigtp;
@@ -94,29 +93,20 @@ tss.explore <- function(df1, varout = NULL, runmod = T) {
             vector[n] u;
             vector[n] tp_mn;
             vector[n] vss_mn;
+            vector[nlake] d;
 //            matrix[nlake, 3] d;
 
             u = muu + etau*sigu;
 
+            d = mud[3] + etad*sigd;
 //            for (i in 1:3) d[,i] = mud[i] + etad[,i]*sigd[i];
-
-//            b = mub + etab*sigb;
-
-//            d1 = mud[1] + sigd[1]*etad1;
-//            d2 = mud[2] + sigd[2]*etad2;
-//            for (i in 1:nlake) {
-//                for (j in 1:nseas) {
-//                    d3[i,j] = mud[3] + sigd[3]*etad3[i] + sigd[4]*etad4[j];
-//                }
-//            }
-//            d3 = mud[3] + sigd[3]*etad3
 
             for (i in 1:n) {
                vss_mn[i] = exp(mub)*chl[i]^k[1] + exp(u[i]);
 
                tp_mn[i] = exp(mud[1])*nvss[i]^k[2] +
                            exp(mud[2])*exp(u[i])^k[3] +
-                           exp(mud[3])*chl[i]^k[4] + dtp[i];
+                           exp(d[lakenum[i]])*chl[i]^k[4] + dtp[i];
             }
         }
         model {
@@ -127,6 +117,8 @@ tss.explore <- function(df1, varout = NULL, runmod = T) {
             mub ~ normal(0,3);
 
             mud ~ normal(0,3);
+            sigd ~ cauchy(0,3);
+            etad ~ normal(0,1);
 //            sigd ~ cauchy(0,3);
 //            for (i in 1:3) etad[,i] ~ normal(0,1);
 
@@ -136,7 +128,6 @@ tss.explore <- function(df1, varout = NULL, runmod = T) {
             k[4] ~ normal(1,1);
 //            k[3] ~ normal(0.877,0.033);
 
-
             sigtp ~ cauchy(0,3);
             sigvss ~ cauchy(0,3);
 
@@ -144,102 +135,110 @@ tss.explore <- function(df1, varout = NULL, runmod = T) {
             tp ~ lognormal(log(tp_mn), sigtp);
         }
     '
+    if (runmod) {
+        require(rstan)
+        rstan_options(auto_write = TRUE)
+        nchains <- 2
+        options(mc.cores = nchains)
 
-    set.seed(1)
-    require(loo)
-    nfold <- 5
-    ik <- kfold_split_random(nfold, nrow(df1))
-    print(ik)
-
-    for (jj in 1:nfold) {
-
-        dftemp2 <- df1[ik == jj,]
-        dftemp <- df1[ik != jj,]
-        datstan <- list(n = nrow(dftemp),
-                        nlake = max(dftemp$lakenum),lakenum = dftemp$lakenum,
-                        nseas = nperiod, seasnum = dftemp$seasnum,
-                        nvss = dftemp$nvss,
-                        tp = dftemp$tp,
-                        dtp = dftemp$dtp,
-                        vss = dftemp$vss,
-                        chl = dftemp$chl)
-        print(str(datstan))
-
-        if (runmod) {
-            require(rstan)
-            rstan_options(auto_write = TRUE)
-
-            nchains <- 3
-            options(mc.cores = nchains)
+        if (! xvalid) {
+            datstan <- list(n = nrow(df1),
+                            nlake = max(df1$lakenum),lakenum = df1$lakenum,
+                            nseas = nperiod, seasnum = df1$seasnum,
+                            nvss = df1$nvss,
+                            tp = df1$tp,
+                            dtp = df1$dtp,
+                            vss = df1$vss,
+                            chl = df1$chl)
+            print(str(datstan))
 
             fit <- stan(model_code = modstan,
-                        data = datstan, iter = 2000, chains = nchains,
-                        warmup = 1000, thin= 2,
+                        data = datstan, iter = 1000, chains = nchains,
+                        warmup = 500, thin= 2,
                         control = list(adapt_delta = 0.98, max_treedepth = 14))
-
-            varout <- extract(fit, pars = c("mud", "k", "mub"))
-            save(varout, file = "varout.rda")
+            return(fit)
         }
-#        else {
-#            load("varout.rda")
-#        }
+        else {
 
-        ## compute u for held out
-        mud <- apply(varout$mud, 2, mean)
-        k <- apply(varout$k, 2, mean)
-        mub <- mean(varout$mub)
+            set.seed(1)
+            require(loo)
+            nfold <- 5
+            ik <- kfold_split_random(nfold, nrow(df1))
+            print(ik)
 
-        upred <- dftemp2$vss - exp(mub)*dftemp2$chl^k[1]
+            for (jj in 1:nfold) {
 
-        ## set negative u values to zero to avoid NAs
-        incvec <- upred < 0
-        upred[incvec] <- 0
-        tp.pred <- exp(mud[1])*dftemp2$nvss^k[2] +
-            exp(mud[2])*upred^k[3] +
-                exp(mud[3])*dftemp2$chl^k[4] + dftemp2$dtp
-        matval <- data.frame(pred = log(tp.pred), obs = log(dftemp2$tp))
+                dftemp2 <- df1[ik == jj,]
+                dftemp <- df1[ik != jj,]
+                datstan <- list(n = nrow(dftemp),
+                                nlake = max(dftemp$lakenum),lakenum = dftemp$lakenum,
+                                nseas = nperiod, seasnum = dftemp$seasnum,
+                                nvss = dftemp$nvss,
+                                tp = dftemp$tp,
+                                dtp = dftemp$dtp,
+                                vss = dftemp$vss,
+                                chl = dftemp$chl)
+                print(str(datstan))
+
+                fit <- stan(model_code = modstan,
+                            data = datstan, iter = 1000, chains = nchains,
+                            warmup = 500, thin= 2,
+                            control = list(adapt_delta = 0.98, max_treedepth = 14))
+
+                varout <- extract(fit, pars = c("mud", "k", "mub", "d"))
+
+
+                ## compute u for held out
+                mud <- apply(varout$mud, 2, mean)
+                k <- apply(varout$k, 2, mean)
+                mub <- mean(varout$mub)
+                d <- apply(varout$d, 2, mean)
+
+                upred <- dftemp2$vss - exp(mub)*dftemp2$chl^k[1]
+
+                ## set negative u values to zero to avoid NAs
+                incvec <- upred < 0
+                upred[incvec] <- 0
+                tp.pred <- exp(mud[1])*dftemp2$nvss^k[2] +
+                    exp(mud[2])*upred^k[3] +
+                        exp(d[dftemp2$lakenum])*dftemp2$chl^k[4] + dftemp2$dtp
+                matval <- data.frame(pred = log(tp.pred), obs = log(dftemp2$tp))
 
 #        plot(log(tp.pred), log(dftemp2$tp))
 #        points(log(tp.pred)[incvec], log(dftemp2$tp)[incvec], pch = 16)
 
-        if (jj == 1) {
-            matall <- matval
-        }
-        else {
-            matall <- rbind(matall, matval)
+                if (jj == 1) {
+                    matall <- matval
+                }
+                else {
+                    matall <- rbind(matall, matval)
+                }
+            }
+
+            return(matall)
         }
     }
 
-    return(matall)
 
     df1$u <- apply(varout$u, 2, mean)
-#    b <- apply(varout$b, 2, mean)
-#    d1 <- apply(varout$d1, 2, mean)
-#    d2 <- apply(varout$d2, 2, mean)
-#    d3 <- apply(varout$d3, c(2,3), mean)
+    mud <- apply(varout$mud, 2, mean)
+    d <- apply(varout$d, 2, mean)
     k <- apply(varout$k, 2, mean)
-    d <- apply(varout$d, c(2,3), mean)
 
 
 #    tsspred <- exp(b[df1$seasnum])*df1$chl.sc^k[1] + exp(df1$u)
     tppred <- rep(NA, times = nrow(df1))
     for (i in 1:nrow(df1)) {
-        tppred[i] <- exp(d[df1$lakenum[i],1])*df1$nvss[i] +
-            exp(d[df1$lakenum[i],2])*exp(df1$u[i])^k[2] +
-            exp(d[df1$lakenum[i],3])*df1$chl[i]^k[3]
+#        tppred[i] <- exp(d[df1$lakenum[i],1])*df1$nvss[i] +
+#            exp(d[df1$lakenum[i],2])*exp(df1$u[i])^k[2] +
+#            exp(d[df1$lakenum[i],3])*df1$chl[i]^k[3]
+        tppred[i] <- exp(mud[1])*df1$nvss[i]^k[2] +
+            exp(d[df1$lakenum[i]])*exp(df1$u[i])^k[3] +
+            exp(mud[3])*df1$chl[i]^k[4]
     }
-
 
 
     dev.new()
-    par(mar = c(4,4,1,1), mfrow = c(4,4), mgp = c(2.3,1,0))
-    for (i in 1:15) {
-        incvec <- df1$lakenum == i
-        plot(log(df1$chl[incvec]), log(df1$tp - df1$dtp)[incvec])
-        abline(d[i,3], k[3])
-        abline(d[i,3], 0.9, lty = "dashed")
-    }
-
     plot(log(tppred), log(df1$tp - df1$dtp))
     abline(0,1)
 
@@ -461,8 +460,9 @@ tss.explore <- function(df1, varout = NULL, runmod = T) {
     stop()
 
 }
-matout <- tss.explore(moi3.all, runmod = T)
-#tss.explore(moi3.all, varout, runmod = F)
+#fitout <- tss.explore(moi3.all, runmod = T, xvalid= F)
+#tss.explore(moi3.all, varout, runmod = F, xvalid=F)
+matout <-  tss.explore(moi3.all, runmod = T, xvalid= T)
 ## varout.tp.1 : b: time, all d: lake
 ## varout.tp.2 : b: time, d3 time
 ## varout.tp.3 : b: time, d3 time and lake.
