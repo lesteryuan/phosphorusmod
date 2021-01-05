@@ -47,6 +47,8 @@ tss.explore <- function(df1, matout = NULL,varout = NULL,
     varlist<- c("nvss", "chl", "tp", "vss")
     mn.val <- apply(df1[, varlist],2,function(x) exp(mean(log(x))))
     print(mn.val)
+    save(mn.val, file = "mn.val.mo.rda")
+    stop()
     for (i in varlist) df1[,i] <- df1[,i]/mn.val[i]
     df1$dtp <- df1$dtp/mn.val["tp"]
 
@@ -161,6 +163,10 @@ tss.explore <- function(df1, matout = NULL,varout = NULL,
         else {
             u <- exp(apply(varout$u, 2, mean))
         }
+
+        dev.new()
+        plot(log(df$chl), df$nvss/(df$nvss+u))
+
         tppred <- exp(mud[1])*df$nvss^k[2] +
                   exp(mud[2])*u^k[3] +
                   exp(mud[3])*df$chl^k[4] + df$dtp
