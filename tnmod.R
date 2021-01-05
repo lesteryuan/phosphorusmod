@@ -59,13 +59,14 @@ tnmod <- function(df1, matout = NULL,varout = NULL,
             int nlake;
             int lakenum[n];
             vector[n] tn;
-            vector[n] don;
+            vector[n] doc;
             vector[n] din;
+            vector[n] don;
             vector[n] chl;
         }
         parameters {
             real k;
-            real mud;
+            vector[2] mud;
 //            real<lower = 0> sigd;
 //            vector[nlake] etad1;
 
@@ -77,7 +78,8 @@ tnmod <- function(df1, matout = NULL,varout = NULL,
 //            vector[nlake] d1;
 //            d1 = mud[1] + etad1*sigd[1];
             for (i in 1:n) {
-               tn_mn[i] = din[i] + don[i] + exp(mud)*chl[i]^k;
+               tn_mn[i] = din[i] + exp(mud[1])*doc[i] + exp(mud[2])*chl[i]^k;
+//             tn_mn[i] = din[i] + don[i] + exp(mud[2])*chl[i]^k;
             }
         }
         model {
@@ -93,11 +95,11 @@ tnmod <- function(df1, matout = NULL,varout = NULL,
     rmsout <- function(x,y) sqrt(sum((x-y)^2)/length(x))
     gettn <- function(df, varout) {
         k <- mean(varout$k)
-        mud <- mean(varout$mud)
+        mud <- apply(varout$mud, 2, mean)
  #       d1 <- apply(varout$d1, 2, mean)
 
-        tnpred <- df$din + df$don +
-            exp(mud)*df$chl^k
+        tnpred <- df$din + exp(mud[1])*df$doc + exp(mud[2])*df$chl^k
+#        tnpred <- df$din + df$don + exp(mud[2])*df$chl^k
 
         return(tnpred)
     }
@@ -106,7 +108,7 @@ tnmod <- function(df1, matout = NULL,varout = NULL,
     if (runmod) {
         require(rstan)
         rstan_options(auto_write = TRUE)
-        nchains <- 2
+        nchains <- 3
         options(mc.cores = nchains)
 
         if (! xvalid) {
@@ -115,8 +117,9 @@ tnmod <- function(df1, matout = NULL,varout = NULL,
                             nseas = nperiod, seasnum = df1$seasnum,
                             tn = df1$tn,
                             din = df1$din,
-                            don = df1$don,
-                            chl = df1$chl)
+                            doc = df1$doc,
+                            chl = df1$chl,
+                            don = df1$don)
             print(str(datstan))
 
             fit <- stan(model_code = modstan,
@@ -124,7 +127,7 @@ tnmod <- function(df1, matout = NULL,varout = NULL,
                         warmup = 300, thin= 1,
                         control = list(adapt_delta = 0.98, max_treedepth = 14))
             varout <- extract(fit, pars = extractvars)
-            tnpred <- gettp(df1, varout)
+            tnpred <- gettn(df1, varout)
             dev.new()
             plot(log(tnpred), log(df1$tn))
             abline(0,1)
@@ -193,4 +196,4 @@ tnmod <- function(df1, matout = NULL,varout = NULL,
     return()
 
 }
-tnmod(moi3.all, runmod = T, xvalid = F)
+vartn.0 <- tnmod(moi3.all, runmod = T, xvalid = F)
