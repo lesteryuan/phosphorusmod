@@ -1,6 +1,7 @@
 # 1/23/2019: model TSS rather than nvss and vssn
 # 1/31/2019: model TSS with changing coef with chl
 ## 12.18.2020: Model seston
+## add diagnostics
 tss.explore <- function(df1, matout = NULL,varout = NULL,
                         runmod = T, xvalid = F) {
 
