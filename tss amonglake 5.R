@@ -64,6 +64,7 @@ tss.explore <- function(df1, matout = NULL,varout = NULL,
     incvec <- log(df1$ntu) < -3
     df1 <- df1[!incvec,]
 
+
        modstan <- '
         data {
             int n;
@@ -124,7 +125,7 @@ tss.explore <- function(df1, matout = NULL,varout = NULL,
 
             k[1] ~ normal(0.807,0.012);
             k[2] ~ normal(1,1);
-            k[3] ~ normal(1,1);
+            k[3] ~ normal(0.89,0.04);
 
             sigtp ~ cauchy(0,3);
             signtu ~ cauchy(0,3);
@@ -247,7 +248,7 @@ tss.explore <- function(df1, matout = NULL,varout = NULL,
     return()
 
 }
-varntu.01 <- tss.explore(moi3.all, runmod = T, xvalid= F)
+varntu.02 <- tss.explore(moi3.all, runmod = T, xvalid= F)
 #matout.00 <-  tss.explore(moi3.all, runmod = T, xvalid= T)
 
 #tss.explore(moi3.all, matout.00, varout.00, runmod = F, xvalid = F)
