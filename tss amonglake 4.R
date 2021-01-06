@@ -44,13 +44,15 @@ tss.explore <- function(df1, matout = NULL,varout = NULL,
 
     df1$seasnum <- as.numeric(df1$yday.q)
 
-    varlist<- c("nvss", "chl", "tp", "vss")
+    varlist<- c("tss", "chl", "tp", "ntu")
     mn.val <- apply(df1[, varlist],2,function(x) exp(mean(log(x))))
     print(mn.val)
     save(mn.val, file = "mn.val.mo.rda")
 
     for (i in varlist) df1[,i] <- df1[,i]/mn.val[i]
     df1$dtp <- df1$dtp/mn.val["tp"]
+    df1$vss <- df1$vss/mn.val["tss"]
+    df1$nvss <- df1$nvss/mn.val["tss"]
 
 #    plot(log(df1$chl), log(df1$tp - df1$dtp))
 #    abline(-1.24, 0.89)
