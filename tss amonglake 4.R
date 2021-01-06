@@ -261,14 +261,14 @@ tss.explore <- function(df1, matout = NULL,varout = NULL,
 
     psed <- exp(mud[1])*df1$nvss^k[2] + exp(mud[2])*exp(u)^k[3]
     psed.vss <- exp(mud[2])*exp(u)^k[3]
-    plot(log(psed), psed.vss/psed)
-    stop()
+    psed.nvss <- exp(mud[1])*df1$nvss^k[2]
+
     mud.ntu <- apply(varntu.01$mud, 2, mean)
     k.ntu <- apply(varntu.01$k, 2, mean)
     u.ntu <- apply(varntu.01$u, 2, mean)
 
     psed2 <- exp(mud.ntu[1])*exp(u.ntu)^k.ntu[2]
-    plot(log(psed)[!selvec], log(psed2))
+    plot(log(psed.nvss)[!selvec], log(psed2))
     abline(0,1)
     stop()
     plot(log(df1$chl), u)
@@ -303,10 +303,10 @@ tss.explore <- function(df1, matout = NULL,varout = NULL,
     return()
 
 }
-#varout.00 <- tss.explore(moi3.all, runmod = T, xvalid= F)
+varout.test <- tss.explore(moi3.all, runmod = T, xvalid= F)
 #matout.00 <-  tss.explore(moi3.all, runmod = T, xvalid= T)
 
-tss.explore(moi3.all, varout = varout.00, runmod = F, xvalid = F)
+#tss.explore(moi3.all, varout = varout.00, runmod = F, xvalid = F)
 ##tss.explore(moi3.all, matout.chl, varout.chl, runmod = F, xvalid = F)
 
 ## varout.tp.1 : b: time, all d: lake
