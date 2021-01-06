@@ -122,7 +122,9 @@ tss.explore <- function(df1, matout = NULL,varout = NULL,
 //            etad1 ~ normal(0,1);
 //            etad2 ~ normal(0,1);
 
-            k ~ normal(1,1);
+            k[1] ~ normal(0.807,0.012);
+            k[2] ~ normal(1,1);
+            k[3] ~ normal(1,1);
 
             sigtp ~ cauchy(0,3);
             signtu ~ cauchy(0,3);
@@ -158,7 +160,7 @@ tss.explore <- function(df1, matout = NULL,varout = NULL,
     if (runmod) {
         require(rstan)
         rstan_options(auto_write = TRUE)
-        nchains <- 2
+        nchains <- 3
         options(mc.cores = nchains)
 
         if (! xvalid) {
@@ -172,8 +174,8 @@ tss.explore <- function(df1, matout = NULL,varout = NULL,
             print(str(datstan))
 
             fit <- stan(model_code = modstan,
-                        data = datstan, iter = 600, chains = nchains,
-                        warmup = 300, thin= 1,
+                        data = datstan, iter = 1000, chains = nchains,
+                        warmup = 400, thin= 1,
                         control = list(adapt_delta = 0.98, max_treedepth = 14))
             varout <- extract(fit, pars = extractvars)
             tp.pred <- gettp(df1, varout, withu = T)
@@ -245,11 +247,11 @@ tss.explore <- function(df1, matout = NULL,varout = NULL,
     return()
 
 }
-#varntu.00 <- tss.explore(moi3.all, runmod = T, xvalid= F)
+varntu.01 <- tss.explore(moi3.all, runmod = T, xvalid= F)
 #matout.00 <-  tss.explore(moi3.all, runmod = T, xvalid= T)
 
 #tss.explore(moi3.all, matout.00, varout.00, runmod = F, xvalid = F)
-tss.explore(moi3.all, varout = varntu.00, runmod = F, xvalid = F)
+#tss.explore(moi3.all, varout = varntu.00, runmod = F, xvalid = F)
 
 ## varout.tp.1 : b: time, all d: lake
 ## varout.tp.2 : b: time, d3 time

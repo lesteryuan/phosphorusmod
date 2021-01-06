@@ -51,8 +51,6 @@ tnmod <- function(df1, matout = NULL,varout = NULL,
     print(sum(incvec))
     df1 <- df1[!incvec,]
 
-    plot(log(df1$chl), log(df1$vss))
-
        modstan <- '
         data {
             int n;
@@ -67,9 +65,9 @@ tnmod <- function(df1, matout = NULL,varout = NULL,
         }
         parameters {
             real k[3];
-            vector[2] mud;
-//            real<lower = 0> sigd;
-//            vector[nlake] etad1;
+            vector[3] mud;
+            real<lower = 0> sigd;
+            vector[nlake] etad;
 
             real<lower = 0> sigtn;
 
@@ -84,25 +82,26 @@ tnmod <- function(df1, matout = NULL,varout = NULL,
             vector[n] tn_mn;
             vector[n] u;
             vector[n] vss_mn;
+            vector[nlake] d3;
 
-//            vector[nlake] d1;
-//            d1 = mud[1] + etad1*sigd[1];
+            d3 = mud[3] + etad*sigd;
 
             u = muu + sigu*etau;
 
             for (i in 1:n) {
                 vss_mn[i] = exp(mub)*chl[i]^k[3] + exp(u[i]);
 
-//               tn_mn[i] = din[i] + exp(mud[1])*doc[i] + exp(mud[2])*chl[i]^k;
+                tn_mn[i] = din[i] + exp(mud[1])*chl[i]^k[1] +
+                        exp(mud[2])*exp(u[i])^k[2] + exp(d3[lakenum[i]])*doc[i];
 
-                tn_mn[i] = din[i] + don[i] + exp(mud[1])*chl[i]^k[1] +
-                        exp(mud[2])*exp(u[i])^k[2];
+//                tn_mn[i] = din[i] + don[i] + exp(mud[1])*chl[i]^k[1] +
+//                        exp(mud[2])*exp(u[i])^k[2];
             }
         }
         model {
             mud ~ normal(0,3);
-//            sigd ~ cauchy(0,3);
-//            etad1 ~ normal(0,1);
+            sigd ~ cauchy(0,3);
+            etad ~ normal(0,1);
 
             k[3] ~ normal(0.807,0.012);
             k[1] ~ normal(1,1);
@@ -125,15 +124,13 @@ tnmod <- function(df1, matout = NULL,varout = NULL,
         mud <- apply(varout$mud, 2, mean)
         mub <- mean(varout$mub)
         u <- apply(varout$u, 2, mean)
- #       d1 <- apply(varout$d1, 2, mean)
+        d3 <- apply(varout$d3, 2, mean)
 
-#        tnpred <- df$din + exp(mud[1])*df$doc + exp(mud[2])*df$chl^k[1]
+#        tnpred <- df$din + df$don + exp(mud[1])*df$chl^k[1] +
+#            exp(mud[2])*exp(u)^k[2]
 
-        print(summary(u))
-        print(k)
-        print(mud)
-        tnpred <- df$din + df$don + exp(mud[1])*df$chl^k[1] +
-            exp(mud[2])*exp(u)^k[2]
+        tnpred <- df$din +  exp(mud[1])*df$chl^k[1] +
+            exp(mud[2])*exp(u)^k[2] + exp(d3[df$lakenum])*df$doc
         print(summary(tnpred))
 
         return(tnpred)
@@ -219,12 +216,12 @@ tnmod <- function(df1, matout = NULL,varout = NULL,
         }
     }
 
-    dev.new()
     par(mar = c(4,4,1,1), mfrow = c(1,2))
     plot(log(df1$chl), log(df1$tn - df1$don - df1$din))
     k <- apply(varout$k, 2, mean)
     mud <- apply(varout$mud, 2, mean)
     abline(mud[1], k[1])
+    stop()
 
     tnpred <- gettn(df1, varout)
     plot(log(df1$tn), log(tnpred))

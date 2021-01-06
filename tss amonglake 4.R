@@ -48,7 +48,7 @@ tss.explore <- function(df1, matout = NULL,varout = NULL,
     mn.val <- apply(df1[, varlist],2,function(x) exp(mean(log(x))))
     print(mn.val)
     save(mn.val, file = "mn.val.mo.rda")
-    stop()
+
     for (i in varlist) df1[,i] <- df1[,i]/mn.val[i]
     df1$dtp <- df1$dtp/mn.val["tp"]
 
@@ -264,10 +264,10 @@ tss.explore <- function(df1, matout = NULL,varout = NULL,
     return()
 
 }
-#varout.00 <- tss.explore(moi3.all, runmod = T, xvalid= F)
+varout.00 <- tss.explore(moi3.all, runmod = T, xvalid= F)
 #matout.00 <-  tss.explore(moi3.all, runmod = T, xvalid= T)
 
-tss.explore(moi3.all, matout.00, varout.00, runmod = F, xvalid = F)
+#tss.explore(moi3.all, matout.00, varout.00, runmod = F, xvalid = F)
 ##tss.explore(moi3.all, matout.chl, varout.chl, runmod = F, xvalid = F)
 
 ## varout.tp.1 : b: time, all d: lake
