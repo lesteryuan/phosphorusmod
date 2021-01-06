@@ -44,7 +44,7 @@ tss.explore <- function(df1, matout = NULL,varout = NULL,
 
     df1$seasnum <- as.numeric(df1$yday.q)
 
-    varlist<- c("nvss", "chl", "tp", "vss")
+    varlist<- c("nvss", "chl", "tp", "vss", "ntu")
     mn.val <- apply(df1[, varlist],2,function(x) exp(mean(log(x))))
     print(mn.val)
     save(mn.val, file = "mn.val.mo.rda")
@@ -248,6 +248,42 @@ tss.explore <- function(df1, matout = NULL,varout = NULL,
             return(matall)
         }
     }
+
+    dev.new()
+
+    mud <- apply(varout$mud, 2, mean)
+    k <- apply(varout$k, 2, mean)
+    u <- apply(varout$u, 2, mean)
+    selvec <- log(df1$ntu) < -3
+
+    psed <- exp(mud[1])*df1$nvss^k[2] + exp(mud[2])*exp(u)^k[3]
+    psed.vss <- exp(mud[2])*exp(u)^k[3]
+    plot(log(psed), psed.vss/psed)
+    stop()
+    mud.ntu <- apply(varntu.01$mud, 2, mean)
+    k.ntu <- apply(varntu.01$k, 2, mean)
+    u.ntu <- apply(varntu.01$u, 2, mean)
+
+    psed2 <- exp(mud.ntu[1])*exp(u.ntu)^k.ntu[2]
+    plot(log(psed)[!selvec], log(psed2))
+    abline(0,1)
+    stop()
+    plot(log(df1$chl), u)
+    require(mgcv)
+    mod <- gam(u ~ s(log(chl), k = 4), data = df1)
+    iord <- order(df1$chl)
+    predout <- predict(mod)
+    lines(log(df1$chl)[iord], predout[iord])
+
+    stop()
+
+    plot(log(df1$chl), log(df1$tp-df1$dtp))
+    k <- apply(varout$k, 2, mean)
+    mud <- apply(varout$mud, 2, mean)
+    abline(mud[3], k[4])
+    abline(mud.ntu[2], k.ntu[3], col = "red")
+    stop()
+
     tppred <- gettp(df1, varout, withu = TRUE)
     print(summary(tppred))
 
@@ -264,10 +300,10 @@ tss.explore <- function(df1, matout = NULL,varout = NULL,
     return()
 
 }
-varout.00 <- tss.explore(moi3.all, runmod = T, xvalid= F)
+#varout.00 <- tss.explore(moi3.all, runmod = T, xvalid= F)
 #matout.00 <-  tss.explore(moi3.all, runmod = T, xvalid= T)
 
-#tss.explore(moi3.all, matout.00, varout.00, runmod = F, xvalid = F)
+tss.explore(moi3.all, varout = varout.00, runmod = F, xvalid = F)
 ##tss.explore(moi3.all, matout.chl, varout.chl, runmod = F, xvalid = F)
 
 ## varout.tp.1 : b: time, all d: lake
