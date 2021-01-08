@@ -85,8 +85,8 @@ tss.explore <- function(df1, matout = NULL,varout = NULL,
             real k[3];
 
             vector[2] mud;
-//            real<lower = 0> sigd[2];
-//            vector[nlake] etad1;
+            real<lower = 0> sigd;
+            vector[nlake] etad1;
 //            vector[nlake] etad2;
 
             real<lower = 0> signtu;
@@ -97,18 +97,18 @@ tss.explore <- function(df1, matout = NULL,varout = NULL,
             vector[n] u;
             vector[n] tp_mn;
             vector[n] ntu_mn;
-//            vector[nlake] d1;
+            vector[nlake] d1;
  //           vector[nlake] d2;
 
             u = muu + etau*sigu;
 
-//            d1 = mud[1] + etad1*sigd[1];
+            d1 = mud[1] + etad1*sigd;
 //            d2 = mud[2] + etad2*sigd[2];
 
             for (i in 1:n) {
                ntu_mn[i] = exp(mub)*chl[i]^k[1] + exp(u[i]);
 
-               tp_mn[i] = exp(mud[1])*exp(u[i])^k[2] +
+               tp_mn[i] = exp(d1[lakenum[i]])*exp(u[i])^k[2] +
                           exp(mud[2])*chl[i]^k[3] + dtp[i];
             }
         }
@@ -119,11 +119,11 @@ tss.explore <- function(df1, matout = NULL,varout = NULL,
 
             mub ~ normal(0,3);
             mud ~ normal(0,3);
-//            sigd ~ cauchy(0,3);
-//            etad1 ~ normal(0,1);
+            sigd ~ cauchy(0,3);
+            etad1 ~ normal(0,1);
 //            etad2 ~ normal(0,1);
 
-            k[1] ~ normal(0.807,0.012);
+            k[1] ~ normal(0.807,0.001);
             k[2] ~ normal(1,1);
             k[3] ~ normal(0.89,0.04);
 
