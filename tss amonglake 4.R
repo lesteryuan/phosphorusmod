@@ -46,6 +46,32 @@ tss.explore <- function(df1, matout = NULL,varout = NULL,
 
     df1$seasnum <- as.numeric(df1$yday.q)
 
+    ## model for dtp to chl relationship
+    dev.new()
+    plot(log(df1$chl), log(df1$dtp - df1$srp), axes= F,xlab="Chl",
+         ylab = "DTP - SRP")
+    logtick.exp(0.001, 10, c(1,2), c(F,F))
+    mod <- lm(log(df1$dtp - df1$srp) ~ log(df1$chl))
+    abline(mod)
+    print(summary(mod))
+
+    dftemp <- unique.data.frame(df1[, c("lake", "lakenum", "logit_crop",
+                                        "flush.rate")])
+    dftemp <- dftemp[order(dftemp$lakenum),]
+    dftemp$d <- apply(varout.vss$d, 2, mean)
+    dev.new()
+    par(mar = c(4,4,1,1), mgp = c(2.3,1,0))
+    plot(dftemp$flush.rate, exp(dftemp$d), xlab = "Flush rate",
+         ylab = "VSS P-content", bty = "l")
+
+
+    incvec <- dat.merge.all.small$us.l3code == 40
+    adj <- 3.375*dat.merge.all.small$chl^0.373
+    points(log(dat.merge.all.small$chl)[incvec],
+           log(dat.merge.all.small$ptl.result - adj)[incvec],
+           pch = 16, col = "red")
+
+
     varlist<- c("tss", "chl", "tp", "ntu")
     mn.val <- apply(df1[, varlist],2,function(x) exp(mean(log(x))))
     print(mn.val)
@@ -53,16 +79,34 @@ tss.explore <- function(df1, matout = NULL,varout = NULL,
 
     for (i in varlist) df1[,i] <- df1[,i]/mn.val[i]
     df1$dtp <- df1$dtp/mn.val["tp"]
+    df1$srp <- df1$srp/mn.val["tp"]
     df1$vss <- df1$vss/mn.val["tss"]
     df1$nvss <- df1$nvss/mn.val["tss"]
 
-#    plot(log(df1$chl), log(df1$tp - df1$dtp))
-#    abline(-1.24, 0.89)
     ## drop one big outlier
     incvec <- log(df1$chl) < -2 & log(df1$tp - df1$dtp) < -3
 #    points(log(df1$chl)[incvec], log(df1$tp - df1$dtp)[incvec], pch = 16)
     df1 <- df1[!incvec, ]
 
+    k <- apply(varout.vss$k, 2, mean)
+    mud <- apply(varout.vss$mud, 2, mean)
+    df1$u <- apply(varout.vss$u, 2, mean)
+    vss.p <- exp(mud[2])*exp(df1$u)^k[3]
+    nvss.p <- exp(mud[1])*df1$nvss^k[2]
+    dev.new()
+    plot(log(df1$chl), log(df1$tss))
+
+    stop()
+
+    dev.new()
+    plot(log(df1$chl), log(df1$tp - df1$dtp), col = "grey",
+         ylim = range(c(log(df1$tp - df1$dtp - vss.p), log(df1$tp-df1$dtp)), na.rm = T))
+    incvec <- df1$flush.rate < 0.3
+    points(log(df1$chl), log(df1$tp - df1$dtp - vss.p), pch = 16,
+           cex = 0.6)
+    abline(-1.644, 0.95)
+
+    stop()
 
        modstan <- '
         data {
