@@ -125,7 +125,7 @@ tss.explore <- function(df1, matout = NULL,varout = NULL,
 
             k[1] ~ normal(0.807,0.001);
             k[2] ~ normal(1,1);
-            k[3] ~ normal(0.89,0.04);
+            k[3] ~ normal(1,1);
 
             sigtp ~ cauchy(0,3);
             signtu ~ cauchy(0,3);
