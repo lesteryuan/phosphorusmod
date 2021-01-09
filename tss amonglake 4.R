@@ -12,6 +12,7 @@ tss.explore <- function(df1, matout = NULL,varout = NULL,
     df1$tp <- as.numeric(as.character(df1$tp))
     df1$chl <- as.numeric(as.character(df1$chl))
     df1$ntu <- as.numeric(as.character(df1$ntu))
+    df1$srp <- as.numeric(as.character(df1$srp))
 
     date0 <- strptime(paste(df1$month, df1$day, "2004", sep = "-"),
                       format = "%m-%d-%Y")
@@ -44,7 +45,7 @@ tss.explore <- function(df1, matout = NULL,varout = NULL,
     print(table(df1$lake))
     df1$lakenum <- as.numeric(df1$lake)
 
-    df1$seasnum <- as.numeric(df1$yday.q)
+    df1$seasnum <- as.numeric(df1$month)
 
     ## model for dtp to chl relationship
     dev.new()
@@ -54,23 +55,6 @@ tss.explore <- function(df1, matout = NULL,varout = NULL,
     mod <- lm(log(df1$dtp - df1$srp) ~ log(df1$chl))
     abline(mod)
     print(summary(mod))
-
-    dftemp <- unique.data.frame(df1[, c("lake", "lakenum", "logit_crop",
-                                        "flush.rate")])
-    dftemp <- dftemp[order(dftemp$lakenum),]
-    dftemp$d <- apply(varout.vss$d, 2, mean)
-    dev.new()
-    par(mar = c(4,4,1,1), mgp = c(2.3,1,0))
-    plot(dftemp$flush.rate, exp(dftemp$d), xlab = "Flush rate",
-         ylab = "VSS P-content", bty = "l")
-
-
-    incvec <- dat.merge.all.small$us.l3code == 40
-    adj <- 3.375*dat.merge.all.small$chl^0.373
-    points(log(dat.merge.all.small$chl)[incvec],
-           log(dat.merge.all.small$ptl.result - adj)[incvec],
-           pch = 16, col = "red")
-
 
     varlist<- c("tss", "chl", "tp", "ntu")
     mn.val <- apply(df1[, varlist],2,function(x) exp(mean(log(x))))
@@ -87,26 +71,6 @@ tss.explore <- function(df1, matout = NULL,varout = NULL,
     incvec <- log(df1$chl) < -2 & log(df1$tp - df1$dtp) < -3
 #    points(log(df1$chl)[incvec], log(df1$tp - df1$dtp)[incvec], pch = 16)
     df1 <- df1[!incvec, ]
-
-    k <- apply(varout.vss$k, 2, mean)
-    mud <- apply(varout.vss$mud, 2, mean)
-    df1$u <- apply(varout.vss$u, 2, mean)
-    vss.p <- exp(mud[2])*exp(df1$u)^k[3]
-    nvss.p <- exp(mud[1])*df1$nvss^k[2]
-    dev.new()
-    plot(log(df1$chl), log(df1$tss))
-
-    stop()
-
-    dev.new()
-    plot(log(df1$chl), log(df1$tp - df1$dtp), col = "grey",
-         ylim = range(c(log(df1$tp - df1$dtp - vss.p), log(df1$tp-df1$dtp)), na.rm = T))
-    incvec <- df1$flush.rate < 0.3
-    points(log(df1$chl), log(df1$tp - df1$dtp - vss.p), pch = 16,
-           cex = 0.6)
-    abline(-1.644, 0.95)
-
-    stop()
 
        modstan <- '
         data {
@@ -125,8 +89,6 @@ tss.explore <- function(df1, matout = NULL,varout = NULL,
             vector[n] etau;
 
             real mub;
-//            real<lower = 0> sigb;
-//            vector[nseas] etab;
 
             real k[3];
 
@@ -170,10 +132,9 @@ tss.explore <- function(df1, matout = NULL,varout = NULL,
             etad1 ~ normal(0,1);
             etad2 ~ normal(0,1);
 
-            k[1] ~ normal(0.807,0.012);
+            k[1] ~ normal(0.832,0.013);  // from VSS model
             k[2] ~ normal(1,1);
             k[3] ~ normal(1,1);
-//            k[3] ~ normal(0.877,0.033);
 
             sigtp ~ cauchy(0,3);
             sigtss ~ cauchy(0,3);
@@ -199,8 +160,8 @@ tss.explore <- function(df1, matout = NULL,varout = NULL,
             u <- exp(apply(varout$u, 2, mean))
         }
 
-        tppred <- exp(d1[df$lakenum])*u^k[2] +
-                  exp(d2[df$lakenum])*df$chl^k[3] + df$dtp
+        tppred <- exp(d1[df$seasnum])*u^k[2] +
+                  exp(d2[df$seasnum])*df$chl^k[3] + df$dtp
 
         return(tppred)
     }
@@ -214,8 +175,8 @@ tss.explore <- function(df1, matout = NULL,varout = NULL,
 
         if (! xvalid) {
             datstan <- list(n = nrow(df1),
-                            nlake = max(df1$lakenum),lakenum = df1$lakenum,
-                            nseas = nperiod, seasnum = df1$seasnum,
+#                            nlake = max(df1$lakenum),lakenum = df1$lakenum,
+                            nlake = 12, lakenum = df1$seasnum,
                             nvss = df1$nvss,
                             tp = df1$tp,
                             dtp = df1$dtp,
@@ -249,8 +210,8 @@ tss.explore <- function(df1, matout = NULL,varout = NULL,
                 dftemp2 <- df1[ik == jj,]
                 dftemp <- df1[ik != jj,]
                 datstan <- list(n = nrow(dftemp),
-                                nlake = max(dftemp$lakenum),lakenum = dftemp$lakenum,
-                                nseas = nperiod, seasnum = dftemp$seasnum,
+#                          nlake = max(dftemp$lakenum),lakenum = dftemp$lakenum,
+                           nlake = 12, lakenum = dftemp$seasnum,
                                 nvss = dftemp$nvss,
                                 tp = dftemp$tp,
                                 dtp = dftemp$dtp,
@@ -303,12 +264,8 @@ tss.explore <- function(df1, matout = NULL,varout = NULL,
     return()
 
 }
-#vartss.full <- tss.explore(moi3.all, runmod = T, xvalid= F)
-#mattss.full <-  tss.explore(moi3.all, runmod = T, xvalid= T)
+#vartss.time <- tss.explore(moi3.all, runmod = T, xvalid= F)
+#mattss.time <-  tss.explore(moi3.all, runmod = T, xvalid= T)
 
-tss.explore(moi3.all, matout = mattss.full, varout = vartss.full, runmod = F, xvalid = F)
+tss.explore(moi3.all, matout = mattss.time, varout = vartss.time, runmod = F, xvalid = F)
 ##tss.explore(moi3.all, matout.chl, varout.chl, runmod = F, xvalid = F)
-
-## varout.tp.1 : b: time, all d: lake
-## varout.tp.2 : b: time, d3 time
-## varout.tp.3 : b: time, d3 time and lake.

@@ -2,8 +2,8 @@
 # 1/31/2019: model TSS with changing coef with chl
 ## 12.18.2020: Model seston
 ## add diagnostics
-chlvssmod <- function(df1, matout = NULL,varout = NULL,
-                        runmod = T, xvalid = F) {
+chlvssmod <- function(df1,varout = NULL,
+                        runmod = T) {
 
     df1$vss <- df1$VSS
     df1$chl <- df1$Chl
@@ -11,9 +11,26 @@ chlvssmod <- function(df1, matout = NULL,varout = NULL,
     incvec <- ! is.na(df1$vss) & ! is.na(df1$chl)
     df1 <- df1[incvec,]
     df1$lake <- factor(df1$lake)
-
     df1$lakenum <- as.numeric(df1$lake)
 
+    ## select data starting with ~300 samples per year
+    incvec <- df1$year >= 1989
+    df1 <- df1[incvec,]
+
+    ## select at least 20 samples per lake
+    print(nrow(df1))
+    nsamp <- table(df1$lake)
+    idsav <- names(nsamp)[nsamp > 20]
+    incvec <- rep(F, times = nrow(df1))
+    for (i in idsav) incvec <- incvec | i == df1$lake
+    df1 <- df1[incvec,]
+    print(nrow(df1))
+
+    ## reset lake ids
+    df1$lake <- factor(df1$lake)
+    df1$lakenum <- as.numeric(df1$lake)
+
+    ## scale variables
     varlist<- c("vss", "chl")
     mn.val <- apply(df1[, varlist],2,function(x) exp(mean(log(x))))
     print(mn.val)
@@ -30,8 +47,9 @@ chlvssmod <- function(df1, matout = NULL,varout = NULL,
         }
         parameters {
             real muu;
-            real<lower = 0> sigu;
-            vector[n] etau;
+            real<lower = 0> sigu[2];  //two levels for VSSnp
+            vector[nlake] etau1;
+            vector[n] etau2;
 
             real mub;
             real k;
@@ -40,17 +58,21 @@ chlvssmod <- function(df1, matout = NULL,varout = NULL,
 
         }
         transformed parameters {
-            vector[n] u;
+            vector[nlake] u1;
+            vector[n] u2;
             vector[n] vss_mn;
 
-            u = muu + etau*sigu;
+            u1 = muu + etau1*sigu[1];
+            u2 = u1[lakenum] + etau2*sigu[2];
+
             for (i in 1:n) {
-               vss_mn[i] = exp(mub)*chl[i]^k + exp(u[i]);
+               vss_mn[i] = exp(mub)*chl[i]^k + exp(u2[i]);
             }
         }
         model {
             muu ~ normal(0,3);
-            etau ~ normal(0,1);
+            etau1 ~ normal(0,1);
+            etau2 ~ normal(0,1);
             sigu ~ cauchy(0,3);
             mub ~ normal(0,3);
             k ~ normal(1,1);
@@ -60,12 +82,12 @@ chlvssmod <- function(df1, matout = NULL,varout = NULL,
     '
     rmsout <- function(x,y) sqrt(sum((x-y)^2)/length(x))
 
-    extractvars <- c("k", "mub")
+    extractvars <- c("k", "mub", "u1")
 
     if (runmod) {
         require(rstan)
         rstan_options(auto_write = TRUE)
-        nchains <- 1
+        nchains <- 3
         options(mc.cores = nchains)
 
         datstan <- list(n = nrow(df1),
@@ -75,62 +97,30 @@ chlvssmod <- function(df1, matout = NULL,varout = NULL,
         print(str(datstan))
 
         fit <- stan(model_code = modstan,
-                    data = datstan, iter = 600, chains = nchains,
+                    data = datstan, iter = 800, chains = nchains,
                     warmup = 300, thin= 2,
                     control = list(adapt_delta = 0.98, max_treedepth = 14))
-        varout <- extract(fit, pars = extractvars)
         return(fit)
+
     }
 
+    k <- mean(varout$k)
+    mub <- mean(varout$mub)
     dev.new()
+    par(mar = c(4,4,1,1), mfrow = c(1,2))
+    plot(log(df1$chl), log(df1$vss), col = "grey")
+    abline(mub, k)
 
-    mud <- apply(varout$mud, 2, mean)
-    k <- apply(varout$k, 2, mean)
-    u <- apply(varout$u, 2, mean)
-    selvec <- log(df1$ntu) < -3
-
-    psed <- exp(mud[1])*df1$nvss^k[2] + exp(mud[2])*exp(u)^k[3]
-    psed.vss <- exp(mud[2])*exp(u)^k[3]
-    plot(log(psed), psed.vss/psed)
-    stop()
-    mud.ntu <- apply(varntu.01$mud, 2, mean)
-    k.ntu <- apply(varntu.01$k, 2, mean)
-    u.ntu <- apply(varntu.01$u, 2, mean)
-
-    psed2 <- exp(mud.ntu[1])*exp(u.ntu)^k.ntu[2]
-    plot(log(psed)[!selvec], log(psed2))
-    abline(0,1)
-    stop()
-    plot(log(df1$chl), u)
-    require(mgcv)
-    mod <- gam(u ~ s(log(chl), k = 4), data = df1)
-    iord <- order(df1$chl)
-    predout <- predict(mod)
-    lines(log(df1$chl)[iord], predout[iord])
+    df2 <- merge(df1, res.dat, by.x = "lake", by.y = "MU..")
+    df2 <- unique.data.frame(df2[, c("lake", "lakenum", "flush.rate", "mean.depth")])
+    df2 <- df2[order(df2$lakenum),]
+    u1 <- apply(varout$u1, 2, mean)
+    plot(log(df2$mean.depth), u1)
 
     stop()
-
-    plot(log(df1$chl), log(df1$tp-df1$dtp))
-    k <- apply(varout$k, 2, mean)
-    mud <- apply(varout$mud, 2, mean)
-    abline(mud[3], k[4])
-    abline(mud.ntu[2], k.ntu[3], col = "red")
-    stop()
-
-    tppred <- gettp(df1, varout, withu = TRUE)
-    print(summary(tppred))
-
-    print(summary(matout))
-    dev.new()
-    plot(matout[,1], matout[,2])
-    points(log(tppred), log(df1$tp), pch = 16, col = "red", cex = 0.6)
-    abline(0,1)
-
-
-    print(rmsout(log(tppred), log(df1$tp)))
-    print(rmsout(matout[,1], matout[,2]))
 
     return()
 
 }
-chlvssmod(mo.all)
+#fitout <- chlvssmod(mo.all, runmod = T)
+chlvssmod(mo.all, varout, runmod= F)
