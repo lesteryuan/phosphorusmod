@@ -72,6 +72,11 @@ tss.explore <- function(df1, matout = NULL,varout = NULL,
 #    points(log(df1$chl)[incvec], log(df1$tp - df1$dtp)[incvec], pch = 16)
     df1 <- df1[!incvec, ]
 
+    incvec <- df1$seasnum == 3
+    plot(log(df1$chl)[incvec], log(df1$tp - df1$dtp)[incvec])
+    abline(-1.447, 0.82)
+    stop()
+
        modstan <- '
         data {
             int n;
@@ -95,9 +100,9 @@ tss.explore <- function(df1, matout = NULL,varout = NULL,
             real k[3];
 
             vector[2] mud;
-            real<lower = 0> sigd[3];
+            real<lower = 0> sigd[2];
             vector[nlake] etad1;
-            vector[nlake] etad2;
+//            vector[nlake] etad2;
             vector[nseas] etad2a;
 //            vector[nseas] etad2b;
 
@@ -110,20 +115,21 @@ tss.explore <- function(df1, matout = NULL,varout = NULL,
             vector[n] tp_mn;
             vector[n] tss_mn;
             vector[nlake] d1;
-            matrix[nlake, nseas] d2;
+            vector[nseas] d2;
 
             u = muu + etau*sigu;
 
             d1 = mud[1] + etad1*sigd[1];
-            for (i in 1:nseas) {
-                d2[,i] = mud[2] + etad2*sigd[2] + etad2a[i]*sigd[3];
-            }
+            d2 = mud[2] + etad2a*sigd[2];
+//            for (i in 1:nseas) {
+//                d2[,i] = mud[2] + etad2*sigd[2] + etad2a[i]*sigd[3];
+//            }
 
             for (i in 1:n) {
                tss_mn[i] = exp(mub)*chl[i]^k[1] + exp(u[i]);
 
                tp_mn[i] = exp(d1[lakenum[i]])*exp(u[i])^k[2] +
-                          exp(d2[lakenum[i], seasnum[i]])*chl[i]^k[3] + dtp[i];
+                          exp(d2[seasnum[i]])*chl[i]^k[3] + dtp[i];
             }
         }
         model {
@@ -136,7 +142,7 @@ tss.explore <- function(df1, matout = NULL,varout = NULL,
             mud ~ normal(0,3);
             sigd ~ cauchy(0,3);
             etad1 ~ normal(0,1);
-            etad2 ~ normal(0,1);
+//            etad2 ~ normal(0,1);
             etad2a ~ normal(0,1);
 //            etad2b ~ normal(0,1);
 
@@ -157,7 +163,7 @@ tss.explore <- function(df1, matout = NULL,varout = NULL,
         k <- apply(varout.loc$k, 2, mean)
         mud <- apply(varout.loc$mud, 2, mean)
         d1 <- apply(varout.loc$d1, 2, mean)
-        d2 <- apply(varout.loc$d2, c(2,3), mean)
+        d2 <- apply(varout.loc$d2, 2, mean)
         mub <- mean(varout.loc$mub)
 
         if (! withu) {
@@ -172,7 +178,7 @@ tss.explore <- function(df1, matout = NULL,varout = NULL,
         tppred <- rep(NA, times = nrow(df))
         for (i in 1:nrow(df)) {
             tppred[i] <- exp(d1[df$lakenum[i]])*u[i]^k[2] +
-                exp(d2[df$lakenum[i], df$seasnum[i]])*df$chl[i]^k[3] + df$dtp[i]
+                exp(d2[df$seasnum[i]])*df$chl[i]^k[3] + df$dtp[i]
         }
 
         return(tppred)
@@ -182,7 +188,7 @@ tss.explore <- function(df1, matout = NULL,varout = NULL,
     if (runmod) {
         require(rstan)
         rstan_options(auto_write = TRUE)
-        nchains <- 6
+        nchains <- 3
         options(mc.cores = nchains)
 
         if (! xvalid) {
@@ -198,8 +204,8 @@ tss.explore <- function(df1, matout = NULL,varout = NULL,
             print(str(datstan))
 
             fit <- stan(model_code = modstan,
-                        data = datstan, iter = 1200, chains = nchains,
-                        warmup = 700, thin= 2,
+                        data = datstan, iter = 800, chains = nchains,
+                        warmup = 400, thin= 2,
                         control = list(adapt_delta = 0.98, max_treedepth = 14))
 
             varout <- extract(fit, pars = extractvars)
@@ -278,7 +284,7 @@ tss.explore <- function(df1, matout = NULL,varout = NULL,
 
 }
 
-vartss.d2tl.d1l <- tss.explore(moi3.all, runmod = T, xvalid= F)
+vartss.test <- tss.explore(moi3.all, runmod = T, xvalid= F)
 #mattss.d2l.d1tl <-  tss.explore(moi3.all, runmod = T, xvalid= T)
 
 #tss.explore(moi3.all, matout = mattss.d2l.d1tl, varout = vartss.d2l.d1tl, runmod = F, xvalid = F)
