@@ -19,7 +19,7 @@ tss.explore <- function(df1, matout = NULL,varout = NULL,
     df1$yday <- date0$yday
 
     print(nrow(df1))
-    df1 <- merge(df1, res.dat[, c("MU..", "flush.rate")], by.x = "lake",
+    df1 <- merge(df1, res.dat[, c("MU..", "flush.rate", "mean.depth")], by.x = "lake",
                  by.y = "MU..")
     print(nrow(df1))
     print(summary(df1$flush.rate))
@@ -52,7 +52,7 @@ tss.explore <- function(df1, matout = NULL,varout = NULL,
 #    plot(log(df1$chl), log(df1$dtp - df1$srp), axes= F,xlab="Chl",
 #         ylab = "DTP - SRP")
 #    logtick.exp(0.001, 10, c(1,2), c(F,F))
-    mod <- lm(log(df1$dtp - df1$srp) ~ log(df1$chl))
+    mod <- lm(log(df1$dtp - df1$srp) ~ log(df1$chl):df1$lake + df1$lake)
 #    abline(mod)
     print(summary(mod))
 
@@ -66,6 +66,17 @@ tss.explore <- function(df1, matout = NULL,varout = NULL,
     df1$srp <- df1$srp/mn.val["tp"]
     df1$vss <- df1$vss/mn.val["tss"]
     df1$nvss <- df1$nvss/mn.val["tss"]
+
+    par(mar = c(4,4,1,1), mfrow = c(1,2))
+    for (i in 11:12) {
+        incvec <- df1$lakenum ==i
+        plot(log(df1$chl), log(df1$tp-df1$dtp), type = "n")
+        points(log(df1$chl[incvec]), log((df1$tp - df1$dtp))[incvec],
+             col = "grey")
+        abline(-1.06, 0.59)
+        abline(-1.29, 0.89, col = "red")
+    }
+    stop()
 
     ## drop one big outlier
     incvec <- log(df1$chl) < -2 & log(df1$tp - df1$dtp) < -3
