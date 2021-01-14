@@ -1,7 +1,7 @@
 ## 11.6.2019: Production version of TP-chl model
 ## 12.17.2019Cleaned and commented
 ntumodel <- function(df1, varout = NULL, varout.mo = NULL, runmod = T) {
-    source("logtick.exp.R")
+#    source("logtick.exp.R")
     source("binv.R")
 
     require(rstan)

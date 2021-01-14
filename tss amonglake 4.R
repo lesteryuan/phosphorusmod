@@ -56,6 +56,9 @@ tss.explore <- function(df1, matout = NULL,varout = NULL,
     mod1 <- lm(pmean ~ cmean)
     mod2 <- lm(pmean ~ dmean)
     print(summary(mod2))
+    predout <- predict(mod2, se.fit = T)
+    print(predout)
+
 
     load("cutp.depth.rda")
     abline(v = cutp.depth)
@@ -65,21 +68,12 @@ tss.explore <- function(df1, matout = NULL,varout = NULL,
     ## priors in the range of MO I3 lakes
     prior1 <- cc[1] + cc[2]*cutm
     imin <- which(cutm < min(dmean))
-    prior1[imin] <- prior1[max(imin)+1]
+#    prior1[imin] <- prior1[max(imin)+1]
     imax <- which(cutm > max(dmean))
-    prior1[imax] <- prior1[min(imax)-1]
+#    prior1[imax] <- prior1[min(imax)-1]
     plot(cutm, prior1)
     points(dmean, pmean, pch = 16)
     save(prior1, file = "prior1.rda")
-    stop()
-    cc <- coef(mod2)
-    xnew <- seq(1, 60, by = 1)
-    predout <- exp(cc[1] + log(xnew)*cc[2])
-    lines(xnew, predout)
-    print(summary(mod1))
-    print(summary(mod2))
-
-    stop()
 
     varlist<- c("tss", "chl", "tp", "ntu")
     mn.val <- apply(df1[, varlist],2,function(x) exp(mean(log(x))))
@@ -96,11 +90,6 @@ tss.explore <- function(df1, matout = NULL,varout = NULL,
     incvec <- log(df1$chl) < -2 & log(df1$tp - df1$dtp) < -3
 #    points(log(df1$chl)[incvec], log(df1$tp - df1$dtp)[incvec], pch = 16)
     df1 <- df1[!incvec, ]
-
-    incvec <- df1$seasnum == 3
-    plot(log(df1$chl)[incvec], log(df1$tp - df1$dtp)[incvec])
-    abline(-1.447, 0.82)
-    stop()
 
        modstan <- '
         data {
@@ -213,7 +202,7 @@ tss.explore <- function(df1, matout = NULL,varout = NULL,
     if (runmod) {
         require(rstan)
         rstan_options(auto_write = TRUE)
-        nchains <- 3
+        nchains <- 6
         options(mc.cores = nchains)
 
         if (! xvalid) {
@@ -229,8 +218,8 @@ tss.explore <- function(df1, matout = NULL,varout = NULL,
             print(str(datstan))
 
             fit <- stan(model_code = modstan,
-                        data = datstan, iter = 800, chains = nchains,
-                        warmup = 400, thin= 2,
+                        data = datstan, iter = 1000, chains = nchains,
+                        warmup = 500, thin= 2,
                         control = list(adapt_delta = 0.98, max_treedepth = 14))
 
             varout <- extract(fit, pars = extractvars)
