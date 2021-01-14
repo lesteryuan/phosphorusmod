@@ -48,13 +48,38 @@ tss.explore <- function(df1, matout = NULL,varout = NULL,
     df1$seasnum <- as.numeric(df1$yday.q)
 
     ## model for dtp to chl relationship
-#    dev.new()
-#    plot(log(df1$chl), log(df1$dtp - df1$srp), axes= F,xlab="Chl",
-#         ylab = "DTP - SRP")
-#    logtick.exp(0.001, 10, c(1,2), c(F,F))
-    mod <- lm(log(df1$dtp - df1$srp) ~ log(df1$chl):df1$lake + df1$lake)
-#    abline(mod)
-    print(summary(mod))
+    incvec <- df1$dtp > df1$srp
+    dftemp <- df1[incvec,]
+    pmean <- tapply(log(dftemp$dtp), dftemp$lake, mean)
+    cmean <- tapply(log(dftemp$chl), dftemp$lake, mean)
+    dmean <- tapply(log(dftemp$mean.depth), dftemp$lake, mean)
+    mod1 <- lm(pmean ~ cmean)
+    mod2 <- lm(pmean ~ dmean)
+    print(summary(mod2))
+
+    load("cutp.depth.rda")
+    abline(v = cutp.depth)
+    cutm <- 0.5*(cutp.depth[-1] + cutp.depth[-length(cutp.depth)])
+    cc <- coef(mod2)
+    ## create shape of priors for dtp with informative
+    ## priors in the range of MO I3 lakes
+    prior1 <- cc[1] + cc[2]*cutm
+    imin <- which(cutm < min(dmean))
+    prior1[imin] <- prior1[max(imin)+1]
+    imax <- which(cutm > max(dmean))
+    prior1[imax] <- prior1[min(imax)-1]
+    plot(cutm, prior1)
+    points(dmean, pmean, pch = 16)
+    save(prior1, file = "prior1.rda")
+    stop()
+    cc <- coef(mod2)
+    xnew <- seq(1, 60, by = 1)
+    predout <- exp(cc[1] + log(xnew)*cc[2])
+    lines(xnew, predout)
+    print(summary(mod1))
+    print(summary(mod2))
+
+    stop()
 
     varlist<- c("tss", "chl", "tp", "ntu")
     mn.val <- apply(df1[, varlist],2,function(x) exp(mean(log(x))))
@@ -66,17 +91,6 @@ tss.explore <- function(df1, matout = NULL,varout = NULL,
     df1$srp <- df1$srp/mn.val["tp"]
     df1$vss <- df1$vss/mn.val["tss"]
     df1$nvss <- df1$nvss/mn.val["tss"]
-
-    par(mar = c(4,4,1,1), mfrow = c(1,2))
-    for (i in 11:12) {
-        incvec <- df1$lakenum ==i
-        plot(log(df1$chl), log(df1$tp-df1$dtp), type = "n")
-        points(log(df1$chl[incvec]), log((df1$tp - df1$dtp))[incvec],
-             col = "grey")
-        abline(-1.06, 0.59)
-        abline(-1.29, 0.89, col = "red")
-    }
-    stop()
 
     ## drop one big outlier
     incvec <- log(df1$chl) < -2 & log(df1$tp - df1$dtp) < -3
