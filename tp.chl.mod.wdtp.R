@@ -7,7 +7,7 @@ ntumodel <- function(df1, varout = NULL, varout.mo = NULL, runmod = T) {
 
     require(rstan)
 
-    nchains <- 6    # select number of chains
+    nchains <- 1    # select number of chains
 
     depthsel <- 3.2              # lake depth
     ecosel <- 65                # Level III ecoregion code
@@ -32,6 +32,11 @@ ntumodel <- function(df1, varout = NULL, varout.mo = NULL, runmod = T) {
     incvec <- df1$chl >0
     df1 <- df1[incvec,]
     cat("N dropped for detection limit:", norig - nrow(df1), "\n")
+
+
+    ## drop samples with chl > 100
+    incvec <- df1$chl < 100
+    df1 <- df1[incvec,]
 
     ## scale chl
     chlmn <- mean(log(df1$chl))
@@ -104,11 +109,11 @@ ntumodel <- function(df1, varout = NULL, varout.mo = NULL, runmod = T) {
             vector[neco] etab;
             real<lower = 0> muk[3];  // exponents on chl and u in models
             vector[2] mud;           // mean coef for tp model
-            vector<lower = 0>[3] sigd;// SD of ecoregion- or depth-specific coef
+            real<lower = 0> sigd;// SD of ecoregion- or depth-specific coef
 
 
             vector[neco] etad2;
-            vector[neco] etad3;
+//            vector[neco] etad3;
 
             vector[ndepth] d1;
 //            vector[n] etad1;
@@ -123,7 +128,7 @@ ntumodel <- function(df1, varout = NULL, varout.mo = NULL, runmod = T) {
             // difference among depths. just using mud[1]
 //            vector[n] d1samp;
             vector[neco]  d2;
-            vector[neco] d3;
+//            vector[neco] d3;
 
             b = mub + etab*sigb;
 
@@ -131,8 +136,8 @@ ntumodel <- function(df1, varout = NULL, varout.mo = NULL, runmod = T) {
             u = muu[depthnum] + eta_u2*sigu[2];
 //            d1samp = d1[depthnum] + sigd[1]*etad1;
 
-            d2 = mud[1] + sigd[2]*etad2;
-            d3 = mud[2] + sigd[3]*etad3;
+            d2 = mud[1] + sigd*etad2;
+//            d3 = mud[2] + sigd[3]*etad3;
         }
         model {
             vector[n] turb_mn;
@@ -149,7 +154,8 @@ ntumodel <- function(df1, varout = NULL, varout.mo = NULL, runmod = T) {
 
             muk ~ normal(1,0.3);    // muk should be somewhere around 1
             for (i in 1:ndepth) {
-               d1[i] ~ normal(d1p[i], d1s[i]);
+//               d1[i] ~ normal(d1p[i], d1s[i]);
+                 d1[i] ~ normal(0,4);
             }
             mud[1] ~ normal(0,4);
             mud[2] ~ normal(0,4);
@@ -157,14 +163,14 @@ ntumodel <- function(df1, varout = NULL, varout.mo = NULL, runmod = T) {
 
 //            etad1 ~ normal(0,1);
             etad2 ~ normal(0,1);
-            etad3 ~ normal(0,1);
+//            etad3 ~ normal(0,1);
             sigtp ~ cauchy(0,3);
 
            for (i in 1:n) {
                turb_mn[i] = exp(b[econum[i]])*chl[i]^muk[1] + exp(u[i]);
                tp_mn[i] = exp(d1[depthnum[i]]) +
                           exp(d2[econum[i]])*exp(u[i])^muk[2] +
-                          exp(d3[econum[i]])*chl[i]^muk[3];
+                          exp(mud[2])*chl[i]^muk[3];
            }
 
             // Eqn 25 from document
@@ -189,12 +195,19 @@ ntumodel <- function(df1, varout = NULL, varout.mo = NULL, runmod = T) {
     ## post processing
     grey.t <- adjustcolor("grey39", alpha.f = 0.5)
 
+    incvec<- df1$us.l3code == "40"
+    dftemp <- df1[incvec,]
     dev.new()
     plot(log(df1$chl), log(df1$ptl.result),
+
          xlab = expression(Chl~italic(a)~(mu*g/L)),
          ylab = expression(TP~(mu*g/L)), pch= 21, col = "grey",
          bg = "white", axes = F)
+
+#    points(        log(moi3.all$chl), log(moi3.all$tp - moi3.all$dtp),
+#           pch = "+")
     logtick.exp(0.001, 10, c(1,2), c(F,F))
+
     x <- seq(min(log(df1$chl)), max(log(df1$chl)), length = 40)
     predout <- matrix(NA, ncol = 3, nrow = length(x))
 
@@ -207,7 +220,7 @@ ntumodel <- function(df1, varout = NULL, varout.mo = NULL, runmod = T) {
     for (i in 1:length(x)) {
 #        y <- varout$mud[,3] - varout$muk[,3]*log(chlsc) +
 #            varout$muk[,3]*x[i]
-        y <- rnorm(nsamp, mean = varout$mud[,2], sd = varout$sigd[,3])  -
+        y <- rnorm(nsamp, mean = varout$mud[,2], sd = 0.1)  -
             varout$muk[,3]*log(chlsc) +
                 varout$muk[,3]*x[i]
         mnval <- varout.mo$d2[,3]
@@ -219,8 +232,8 @@ ntumodel <- function(df1, varout = NULL, varout.mo = NULL, runmod = T) {
         predout.mo[i,] <- quantile(y2, prob = c(0.025, 0.5, 0.975))
     }
     print(predout)
-    polygon(c(x, rev(x)), c(predout[,1], rev(predout[,3])),
-            col = grey.t, border = NA)
+ #   polygon(c(x, rev(x)), c(predout[,1], rev(predout[,3])),
+ #           col = grey.t, border = NA)
     lines(x, predout[,2])
     lines(x, predout.mo[,2], lty = "dashed")
     lines(x, predout.mo[,1], lty = "dotted")
@@ -470,8 +483,8 @@ ntumodel <- function(df1, varout = NULL, varout.mo = NULL, runmod = T) {
 ##  run post processing.
 #fitout <- ntumodel(dat.merge.all, runmod = T)
 ## post processing
-#varout.test <- extract(fitout, pars = c("muk", "mub", "b", "d1", "d2", "d3",
-#                              "muu", "muu_mn", "u", "mud", "sigd"))
-#umean <- apply(varout.test$u, 2, mean)
+varout.test2 <- extract(fitout, pars = c("muk", "mub", "b", "d1", "d2",
+                              "muu", "muu_mn", "u", "mud", "sigd"))
+umean <- apply(varout.test2$u, 2, mean)
 
-ntumodel(dat.merge.all, varout = varout.test, varout.mo = vartss.test, runmod = F)
+ntumodel(dat.merge.all, varout = varout.test2, varout.mo = vartss.test, runmod = F)
