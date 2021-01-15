@@ -56,6 +56,13 @@ ntumodel <- function(df1, varout = NULL, varout.mo = NULL, runmod = T) {
     incvec <- df1$st.nla2012 == "HI"
     df1 <- df1[!incvec,]
 
+    # thin data down by 0.25
+    set.seed(1)
+    isamp <- sample(nrow(df1))
+    isamp <- isamp[1:floor(0.25*nrow(df1))]
+    df1 <- df1[isamp,]
+    print(nrow(df1))
+
     ## reset factor levels for state
     df1$state <- factor(df1$st.nla2012)
     df1$statenum <- as.numeric(df1$state)
@@ -78,10 +85,11 @@ ntumodel <- function(df1, varout = NULL, varout.mo = NULL, runmod = T) {
     datstan <- list(n = nrow(df1),
                     ndepth = max(df1$dclassnum),depthnum = df1$dclassnum,
                     neco = max(df1$econum), econum = df1$econum,
-                    ntu = df1$turb.result,
+                    ntu = log(df1$turb.result),
                     tp = log(df1$ptl.result),
                     chl = df1$chl.sc,
-                    a = c(1.925*chlsc^0.734, 0.734))
+                    depth = log(df1$index.site.depth),
+                    a = c(4, -1))
 
     print(str(datstan))
 
@@ -95,6 +103,8 @@ ntumodel <- function(df1, varout = NULL, varout.mo = NULL, runmod = T) {
             vector[n] ntu;         // NTU
             vector[n] tp;          // TP
             vector[n] chl;         // Scaled Chl
+            vector[n] depth;
+            real a[2];
         }
         parameters {
             real muu_mn;             // grand mean ntu_np
@@ -107,11 +117,13 @@ ntumodel <- function(df1, varout = NULL, varout.mo = NULL, runmod = T) {
             vector[neco] etab;
             real<lower = 0> muk[3];  // exponents on chl and u in models
             vector[3] mud;           // mean coef for tp model
-            real<lower = 0> sigd;// SD of ecoregion- or depth-specific coef
+            real<lower = 0> sigd[2];// SD of ecoregion- or depth-specific coef
 
-
+            vector[n] etad1;
             vector[neco] etad2;
             real<lower = 0> sigtp;    // measurement error of tp
+
+            real am[2];
 
         }
         transformed parameters {
@@ -120,14 +132,16 @@ ntumodel <- function(df1, varout = NULL, varout.mo = NULL, runmod = T) {
             vector[n] u;
             // dropped depth specific d1 because no sig
             // difference among depths. just using mud[1]
+            vector[n] d1s;
             vector[neco]  d2;
-
 
             b = mub + etab*sigb;
 
             muu = muu_mn + eta_u1*sigu[1];
             u = muu[depthnum] + eta_u2*sigu[2];
-            d2 = mud[2] + sigd*etad2;
+
+            d1s = am[1] + am[2]*depth + sigd[1]*etad1;
+            d2 = mud[2] + sigd[2]*etad2;
         }
         model {
             vector[n] turb_mn;
@@ -137,7 +151,7 @@ ntumodel <- function(df1, varout = NULL, varout.mo = NULL, runmod = T) {
             sigu ~ cauchy(0,3);
             eta_u1 ~ normal(0,1);
             eta_u2 ~ normal(0,1);
-            signtu ~cauchy(0,3);
+            signtu ~ normal(0.1,0.002);
             mub ~ normal(0,4);
             sigb ~ cauchy(0,3);
             etab ~ normal(0,1);
@@ -147,19 +161,23 @@ ntumodel <- function(df1, varout = NULL, varout.mo = NULL, runmod = T) {
 
             sigd ~ cauchy(0,3);
 
+            etad1 ~ normal(0,1);
             etad2 ~ normal(0,1);
 
             sigtp ~ normal(0.123, 0.002);
 
+           am[1] ~ normal(a[1], 0.4);
+           am[2] ~ normal(a[2], 0.4);
+
            for (i in 1:n) {
                turb_mn[i] = exp(b[econum[i]])*chl[i]^muk[1] + exp(u[i]);
-               tp_mn[i] = exp(mud[1]) +
+               tp_mn[i] = exp(d1s[i]) +
                           exp(d2[econum[i]])*exp(u[i])^muk[2] +
                           exp(mud[3])*chl[i]^muk[3];
            }
 
             // Eqn 25 from document
-            ntu ~ lognormal(log(turb_mn), signtu);
+            ntu ~ student_t(4,log(turb_mn), signtu);
             // Eqn 30 from document
             tp ~ student_t(4,log(tp_mn),sigtp);
         }
@@ -180,15 +198,39 @@ ntumodel <- function(df1, varout = NULL, varout.mo = NULL, runmod = T) {
     ## post processing
     grey.t <- adjustcolor("grey39", alpha.f = 0.5)
 
-    incvec<- df1$us.l3code == "40"
-    dftemp <- df1[incvec,]
+    b <- apply(varout$b, 2, mean)
+    mud <- apply(varout$mud, 2, mean)
+    muk <- apply(varout$muk, 2, mean)
+    d2 <- apply(varout$d2, 2, mean)
+    uup <- apply(varout$u, 2, quantile, prob = 0.05)
+    udn <- apply(varout$u, 2, quantile, prob = 0.95)
+    umean <- apply(varout$u, 2, mean)
+    iord <- order(uup)
+    ucalc <- df1$turb.result - exp(b[df1$econum])*df1$chl.sc^muk[1]
+    print(length(ucalc))
+
+    dev.new()
+    par(mar = c(4,4,1,1), mfrow = c(1,2))
+    plot(umean, log(ucalc))
+    abline(0,1)
+    d1s <- apply(varout$d1s, 2, mean)
+
+    plot(log(df1$index.site.depth), d1s)
+    abline(4, -1)
+
+
+    predout <- exp(d1s) + exp(d2[df1$econum])*exp(umean)^muk[2] +
+        exp(mud[3])*df1$chl.sc^muk[3]
+    plot(log(predout), log(df1$ptl.result))
+    print(sqrt(sum((log(predout) - log(df1$ptl.result))^2)/length(predout)))
+    abline(0,1)
+
+
     dev.new()
     plot(log(df1$chl), log(df1$ptl.result),
-
          xlab = expression(Chl~italic(a)~(mu*g/L)),
          ylab = expression(TP~(mu*g/L)), pch= 21, col = "grey",
          bg = "white", axes = F)
-
 #    points(        log(moi3.all$chl), log(moi3.all$tp - moi3.all$dtp),
 #           pch = "+")
     logtick.exp(0.001, 10, c(1,2), c(F,F))
@@ -468,8 +510,8 @@ ntumodel <- function(df1, varout = NULL, varout.mo = NULL, runmod = T) {
 ##  run post processing.
 fitout <- ntumodel(dat.merge.all, runmod = T)
 ## post processing
-varout.p.nat <- extract(fitout, pars = c("muk", "mub", "b",  "d2",
-                              "muu", "muu_mn", "u", "mud", "sigd"))
-umean <- apply(varout.p.nat$u, 2, mean)
+#varout.temp <- extract(fitout, pars = c("muk", "mub", "b",  "d2","d1s",
+#                              "muu", "muu_mn", "u", "mud", "sigd"))
+#umean <- apply(varout.temp$u, 2, mean)
 
-ntumodel(dat.merge.all, varout = varout.p.nat, varout.mo = vartss.test, runmod = F)
+#ntumodel(dat.merge.all, varout = varout.temp, varout.mo = varout.mo, runmod = F)

@@ -55,9 +55,10 @@ tss.explore <- function(df1, matout = NULL,varout = NULL,
     dmean <- tapply(log(dftemp$mean.depth), dftemp$lake, mean)
     mod1 <- lm(pmean ~ cmean)
     mod2 <- lm(pmean ~ dmean)
-    print(summary(mod1))
-    plot(cmean, pmean)
-    abline(mod1)
+    print(summary(mod2))
+    plot(dmean, pmean)
+    abline(mod2)
+    stop()
 
     predout <- predict(mod2, se.fit = T)
     print(predout)
