@@ -55,7 +55,10 @@ tss.explore <- function(df1, matout = NULL,varout = NULL,
     dmean <- tapply(log(dftemp$mean.depth), dftemp$lake, mean)
     mod1 <- lm(pmean ~ cmean)
     mod2 <- lm(pmean ~ dmean)
-    print(summary(mod2))
+    print(summary(mod1))
+    plot(cmean, pmean)
+    abline(mod1)
+
     predout <- predict(mod2, se.fit = T)
     print(predout)
 
@@ -160,7 +163,8 @@ tss.explore <- function(df1, matout = NULL,varout = NULL,
             etad2a ~ normal(0,1);
 //            etad2b ~ normal(0,1);
 
-            k[1] ~ normal(0.832,0.013);  // from VSS model
+ //           k[1] ~ normal(0.832,0.013);  // from VSS model
+            k[1] ~ normal(1,1);
             k[2] ~ normal(1,1);
             k[3] ~ normal(1,1);
 
@@ -197,7 +201,7 @@ tss.explore <- function(df1, matout = NULL,varout = NULL,
 
         return(tppred)
     }
-    extractvars <- c("mud", "k", "mub", "u", "d1", "d2", "sigd", "etad2a")
+    extractvars <- c("mud", "k", "mub", "u", "d1", "d2", "sigd", "etad2a", "sigtp")
 
     if (runmod) {
         require(rstan)
@@ -298,7 +302,7 @@ tss.explore <- function(df1, matout = NULL,varout = NULL,
 
 }
 
-vartss.test <- tss.explore(moi3.all, runmod = T, xvalid= F)
+varout.mo <- tss.explore(moi3.all, runmod = T, xvalid= F)
 #mattss.d2l.d1tl <-  tss.explore(moi3.all, runmod = T, xvalid= T)
 
 #tss.explore(moi3.all, matout = mattss.d2l.d1tl, varout = vartss.d2l.d1tl, runmod = F, xvalid = F)

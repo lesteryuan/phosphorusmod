@@ -7,7 +7,7 @@ ntumodel <- function(df1, varout = NULL, varout.mo = NULL, runmod = T) {
 
     require(rstan)
 
-    nchains <- 1    # select number of chains
+    nchains <- 6    # select number of chains
 
     depthsel <- 3.2              # lake depth
     ecosel <- 65                # Level III ecoregion code
@@ -36,6 +36,8 @@ ntumodel <- function(df1, varout = NULL, varout.mo = NULL, runmod = T) {
 
     ## drop samples with chl > 100
     incvec <- df1$chl < 100
+    df1 <- df1[incvec,]
+    incvec <- df1$chl > 1
     df1 <- df1[incvec,]
 
     ## scale chl
@@ -77,10 +79,9 @@ ntumodel <- function(df1, varout = NULL, varout.mo = NULL, runmod = T) {
                     ndepth = max(df1$dclassnum),depthnum = df1$dclassnum,
                     neco = max(df1$econum), econum = df1$econum,
                     ntu = df1$turb.result,
-                    tp = df1$ptl.result,
+                    tp = log(df1$ptl.result),
                     chl = df1$chl.sc,
-                    d1p = prior1,
-                    d1s = sdprior1)
+                    a = c(1.925*chlsc^0.734, 0.734))
 
     print(str(datstan))
 
@@ -94,9 +95,6 @@ ntumodel <- function(df1, varout = NULL, varout.mo = NULL, runmod = T) {
             vector[n] ntu;         // NTU
             vector[n] tp;          // TP
             vector[n] chl;         // Scaled Chl
-            vector[ndepth] d1p;
-            vector[ndepth] d1s;
-
         }
         parameters {
             real muu_mn;             // grand mean ntu_np
@@ -108,15 +106,11 @@ ntumodel <- function(df1, varout = NULL, varout.mo = NULL, runmod = T) {
             real<lower = 0> sigb;    // standard deviation of b among ecoregions
             vector[neco] etab;
             real<lower = 0> muk[3];  // exponents on chl and u in models
-            vector[2] mud;           // mean coef for tp model
+            vector[3] mud;           // mean coef for tp model
             real<lower = 0> sigd;// SD of ecoregion- or depth-specific coef
 
 
             vector[neco] etad2;
-//            vector[neco] etad3;
-
-            vector[ndepth] d1;
-//            vector[n] etad1;
             real<lower = 0> sigtp;    // measurement error of tp
 
         }
@@ -126,18 +120,14 @@ ntumodel <- function(df1, varout = NULL, varout.mo = NULL, runmod = T) {
             vector[n] u;
             // dropped depth specific d1 because no sig
             // difference among depths. just using mud[1]
-//            vector[n] d1samp;
             vector[neco]  d2;
-//            vector[neco] d3;
+
 
             b = mub + etab*sigb;
 
             muu = muu_mn + eta_u1*sigu[1];
             u = muu[depthnum] + eta_u2*sigu[2];
-//            d1samp = d1[depthnum] + sigd[1]*etad1;
-
-            d2 = mud[1] + sigd*etad2;
-//            d3 = mud[2] + sigd[3]*etad3;
+            d2 = mud[2] + sigd*etad2;
         }
         model {
             vector[n] turb_mn;
@@ -153,30 +143,25 @@ ntumodel <- function(df1, varout = NULL, varout.mo = NULL, runmod = T) {
             etab ~ normal(0,1);
 
             muk ~ normal(1,0.3);    // muk should be somewhere around 1
-            for (i in 1:ndepth) {
-//               d1[i] ~ normal(d1p[i], d1s[i]);
-                 d1[i] ~ normal(0,4);
-            }
-            mud[1] ~ normal(0,4);
-            mud[2] ~ normal(0,4);
+            mud ~ normal(0,4);
+
             sigd ~ cauchy(0,3);
 
-//            etad1 ~ normal(0,1);
             etad2 ~ normal(0,1);
-//            etad3 ~ normal(0,1);
-            sigtp ~ cauchy(0,3);
+
+            sigtp ~ normal(0.123, 0.002);
 
            for (i in 1:n) {
                turb_mn[i] = exp(b[econum[i]])*chl[i]^muk[1] + exp(u[i]);
-               tp_mn[i] = exp(d1[depthnum[i]]) +
+               tp_mn[i] = exp(mud[1]) +
                           exp(d2[econum[i]])*exp(u[i])^muk[2] +
-                          exp(mud[2])*chl[i]^muk[3];
+                          exp(mud[3])*chl[i]^muk[3];
            }
 
             // Eqn 25 from document
             ntu ~ lognormal(log(turb_mn), signtu);
             // Eqn 30 from document
-            tp ~ lognormal(log(tp_mn),sigtp);
+            tp ~ student_t(4,log(tp_mn),sigtp);
         }
     '
 
@@ -186,8 +171,8 @@ ntumodel <- function(df1, varout = NULL, varout.mo = NULL, runmod = T) {
         rstan_options(auto_write = TRUE)
         options(mc.cores = nchains)
         fit <- stan(model_code = modstan,
-                    data = datstan, iter = 1000, chains = nchains,
-                    warmup = 500, thin = 2)
+                    data = datstan, iter = 1200, chains = nchains,
+                    warmup = 600, thin = 2)
         return(fit)
     }
 
@@ -220,7 +205,7 @@ ntumodel <- function(df1, varout = NULL, varout.mo = NULL, runmod = T) {
     for (i in 1:length(x)) {
 #        y <- varout$mud[,3] - varout$muk[,3]*log(chlsc) +
 #            varout$muk[,3]*x[i]
-        y <- rnorm(nsamp, mean = varout$mud[,2], sd = 0.1)  -
+        y <-  varout$mud[,3]  -
             varout$muk[,3]*log(chlsc) +
                 varout$muk[,3]*x[i]
         mnval <- varout.mo$d2[,3]
@@ -232,8 +217,8 @@ ntumodel <- function(df1, varout = NULL, varout.mo = NULL, runmod = T) {
         predout.mo[i,] <- quantile(y2, prob = c(0.025, 0.5, 0.975))
     }
     print(predout)
- #   polygon(c(x, rev(x)), c(predout[,1], rev(predout[,3])),
- #           col = grey.t, border = NA)
+    polygon(c(x, rev(x)), c(predout[,1], rev(predout[,3])),
+            col = grey.t, border = NA)
     lines(x, predout[,2])
     lines(x, predout.mo[,2], lty = "dashed")
     lines(x, predout.mo[,1], lty = "dotted")
@@ -481,10 +466,10 @@ ntumodel <- function(df1, varout = NULL, varout.mo = NULL, runmod = T) {
 
 ## runmod variable set to T to run simulation and set to F to
 ##  run post processing.
-#fitout <- ntumodel(dat.merge.all, runmod = T)
+fitout <- ntumodel(dat.merge.all, runmod = T)
 ## post processing
-varout.test2 <- extract(fitout, pars = c("muk", "mub", "b", "d1", "d2",
+varout.p.nat <- extract(fitout, pars = c("muk", "mub", "b",  "d2",
                               "muu", "muu_mn", "u", "mud", "sigd"))
-umean <- apply(varout.test2$u, 2, mean)
+umean <- apply(varout.p.nat$u, 2, mean)
 
-ntumodel(dat.merge.all, varout = varout.test2, varout.mo = vartss.test, runmod = F)
+ntumodel(dat.merge.all, varout = varout.p.nat, varout.mo = vartss.test, runmod = F)
