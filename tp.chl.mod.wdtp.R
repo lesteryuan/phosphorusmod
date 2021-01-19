@@ -57,11 +57,11 @@ ntumodel <- function(df1, varout = NULL, varout.mo = NULL, runmod = T) {
     df1 <- df1[!incvec,]
 
     # thin data down by 0.25
-    set.seed(1)
-    isamp <- sample(nrow(df1))
-    isamp <- isamp[1:floor(0.25*nrow(df1))]
-    df1 <- df1[isamp,]
-    print(nrow(df1))
+ #   set.seed(1)
+ #   isamp <- sample(nrow(df1))
+ #   isamp <- isamp[1:floor(0.25*nrow(df1))]
+ #   df1 <- df1[isamp,]
+  #  print(nrow(df1))
 
     ## reset factor levels for state
     df1$state <- factor(df1$st.nla2012)
@@ -189,8 +189,8 @@ ntumodel <- function(df1, varout = NULL, varout.mo = NULL, runmod = T) {
         rstan_options(auto_write = TRUE)
         options(mc.cores = nchains)
         fit <- stan(model_code = modstan,
-                    data = datstan, iter = 1200, chains = nchains,
-                    warmup = 600, thin = 2)
+                    data = datstan, iter = 1800, chains = nchains,
+                    warmup = 600, thin = 3)
         return(fit)
     }
 
@@ -508,10 +508,10 @@ ntumodel <- function(df1, varout = NULL, varout.mo = NULL, runmod = T) {
 
 ## runmod variable set to T to run simulation and set to F to
 ##  run post processing.
-fitout <- ntumodel(dat.merge.all, runmod = T)
+#fitout <- ntumodel(dat.merge.all, runmod = T)
 ## post processing
-#varout.temp <- extract(fitout, pars = c("muk", "mub", "b",  "d2","d1s",
-#                              "muu", "muu_mn", "u", "mud", "sigd"))
-#umean <- apply(varout.temp$u, 2, mean)
+varout.temp <- extract(fitout, pars = c("muk", "mub", "b",  "d2","d1s",
+                              "muu", "muu_mn", "u", "mud", "sigd"))
+umean <- apply(varout.temp$u, 2, mean)
 
-#ntumodel(dat.merge.all, varout = varout.temp, varout.mo = varout.mo, runmod = F)
+ntumodel(dat.merge.all, varout = varout.temp, varout.mo = varout.mo, runmod = F)

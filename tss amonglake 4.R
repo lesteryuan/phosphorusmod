@@ -24,17 +24,24 @@ tss.explore <- function(df1, matout = NULL,varout = NULL,
     print(nrow(df1))
     print(summary(df1$flush.rate))
 
-    nperiod <- 4
-#    cutp <- seq(0, 365, length = nperiod)
-#    df1$yday.q <- cut(df1$yday, cutp,include.lowest = T)
-    df1$yday.q <- 1
-    incvec <- df1$month >= 3 & df1$month <= 5
-    df1$yday.q[incvec]<- 2
-    incvec <- df1$month >= 6 & df1$month <= 8
-    df1$yday.q[incvec]<- 3
-    incvec <- df1$month >= 9 & df1$month <= 11
-    df1$yday.q[incvec]<- 4
+    quart <- FALSE
+    if (quart) {
+        nperiod <- 4
+        df1$yday.q <- 1
+        incvec <- df1$month >= 3 & df1$month <= 5
+        df1$yday.q[incvec]<- 2
+        incvec <- df1$month >= 6 & df1$month <= 8
+        df1$yday.q[incvec]<- 3
+        incvec <- df1$month >= 9 & df1$month <= 11
+        df1$yday.q[incvec]<- 4
+    }
+    else {
+        df1$yday.q <- ceiling(df1$month*0.5)
+    }
+
+    print(table(df1$month))
     df1$yday.q <- factor(df1$yday.q)
+    print(table(df1$yday.q))
 
     incvec <- ! is.na(df1$vss) & ! is.na(df1$chl) & ! is.na(df1$tp) &
         ! is.na(df1$nvss)
@@ -56,16 +63,15 @@ tss.explore <- function(df1, matout = NULL,varout = NULL,
     mod1 <- lm(pmean ~ cmean)
     mod2 <- lm(pmean ~ dmean)
     print(summary(mod2))
-    plot(dmean, pmean)
-    abline(mod2)
-    stop()
+#    plot(dmean, pmean)
+#    abline(mod2)
 
     predout <- predict(mod2, se.fit = T)
     print(predout)
 
 
     load("cutp.depth.rda")
-    abline(v = cutp.depth)
+#    abline(v = cutp.depth)
     cutm <- 0.5*(cutp.depth[-1] + cutp.depth[-length(cutp.depth)])
     cc <- coef(mod2)
     ## create shape of priors for dtp with informative
@@ -75,9 +81,9 @@ tss.explore <- function(df1, matout = NULL,varout = NULL,
 #    prior1[imin] <- prior1[max(imin)+1]
     imax <- which(cutm > max(dmean))
 #    prior1[imax] <- prior1[min(imax)-1]
-    plot(cutm, prior1)
-    points(dmean, pmean, pch = 16)
-    save(prior1, file = "prior1.rda")
+#    plot(cutm, prior1)
+#    points(dmean, pmean, pch = 16)
+#    save(prior1, file = "prior1.rda")
 
     varlist<- c("tss", "chl", "tp", "ntu")
     mn.val <- apply(df1[, varlist],2,function(x) exp(mean(log(x))))
@@ -164,16 +170,16 @@ tss.explore <- function(df1, matout = NULL,varout = NULL,
             etad2a ~ normal(0,1);
 //            etad2b ~ normal(0,1);
 
- //           k[1] ~ normal(0.832,0.013);  // from VSS model
-            k[1] ~ normal(1,1);
+            k[1] ~ normal(0.832,0.013);  // from VSS model
+ //           k[1] ~ normal(1,1);
             k[2] ~ normal(1,1);
             k[3] ~ normal(1,1);
 
             sigtp ~ cauchy(0,3);
-            sigtss ~ cauchy(0,3);
+            sigtss ~ normal(0.1, 0.02);
 
-            tss ~ lognormal(log(tss_mn), sigtss);
-            tp ~ lognormal(log(tp_mn), sigtp);
+            tss ~ student_t(4,log(tss_mn), sigtss);
+            tp ~ student_t(4,log(tp_mn), sigtp);
         }
     '
     rmsout <- function(x,y) sqrt(sum((x-y)^2)/length(x))
@@ -213,20 +219,21 @@ tss.explore <- function(df1, matout = NULL,varout = NULL,
         if (! xvalid) {
             datstan <- list(n = nrow(df1),
                             nlake = max(df1$lakenum),lakenum = df1$lakenum,
-                            nseas = 4, seasnum = df1$seasnum,
+                            nseas = 6, seasnum = df1$seasnum,
                             nvss = df1$nvss,
-                            tp = df1$tp,
+                            tp = log(df1$tp),
                             dtp = df1$dtp,
                             vss = df1$vss,
                             chl = df1$chl,
-                            tss = df1$tss)
+                            tss = log(df1$tss))
             print(str(datstan))
 
             fit <- stan(model_code = modstan,
-                        data = datstan, iter = 1000, chains = nchains,
-                        warmup = 500, thin= 2,
+                        data = datstan, iter = 2000, chains = nchains,
+                        warmup = 800, thin= 3,
                         control = list(adapt_delta = 0.98, max_treedepth = 14))
 
+            save(fit, file = "fitmo.rda")
             varout <- extract(fit, pars = extractvars)
 
             tp.pred <- gettp(df =df1, varout.loc = varout, withu = T)
@@ -281,14 +288,31 @@ tss.explore <- function(df1, matout = NULL,varout = NULL,
         }
     }
 
+
+
+    mub <- mean(varout$mub)
+    u <- apply(varout$u, 2, mean)
+
+    k <- apply(varout$k, 2, mean)
+    dev.new()
+    par(mar = c(4,4,1,1), mfrow = c(2,2))
+    d1 <- apply(varout$d1, 2, quantile, prob = c(0.025, 0.5, 0.975))
+    nd1 <- ncol(d1)
+    plot(1:nd1, d1[2,], ylim = range(d1))
+    segments(1:nd1, d1[1,], 1:nd1, d1[3,])
+    stop()
+
+    tsspred <- exp(u) + exp(mub)*df1$chl^k[1]
+
+    plot(log(tsspred), log(df1$tss))
+    abline(0,1)
+
     tppred <- gettp(df1, varout, withu = TRUE)
     print(summary(tppred))
-    dev.new()
-    par(mar = c(4,4,1,1), mfrow = c(1,2))
     plot(log(tppred), log(df1$tp))
     abline(0,1)
     print(rmsout(log(tppred), log(df1$tp)))
-
+    stop()
     print(summary(matout))
 
     plot(matout[,1], matout[,2])
@@ -307,4 +331,5 @@ varout.mo <- tss.explore(moi3.all, runmod = T, xvalid= F)
 #mattss.d2l.d1tl <-  tss.explore(moi3.all, runmod = T, xvalid= T)
 
 #tss.explore(moi3.all, matout = mattss.d2l.d1tl, varout = vartss.d2l.d1tl, runmod = F, xvalid = F)
-##tss.explore(moi3.all, matout.chl, varout.chl, runmod = F, xvalid = F)
+
+tss.explore(moi3.all, varout = varout.mo, runmod = F, xvalid = F)
