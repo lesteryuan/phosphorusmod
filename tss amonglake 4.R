@@ -127,7 +127,7 @@ tss.explore <- function(df1, matout = NULL,varout = NULL,
             real<lower = 0> sigd[2];
             vector[nlake] etad1;
 //            vector[nlake] etad2;
-            vector[nseas] etad2a;
+            vector[nlake] etad2a;
 //            vector[nseas] etad2b;
 
             real<lower = 0> sigtss;
@@ -139,7 +139,7 @@ tss.explore <- function(df1, matout = NULL,varout = NULL,
             vector[n] tp_mn;
             vector[n] tss_mn;
             vector[nlake] d1;
-            vector[nseas] d2;
+            vector[nlake] d2;
 
             u = muu + etau*sigu;
 
@@ -153,7 +153,7 @@ tss.explore <- function(df1, matout = NULL,varout = NULL,
                tss_mn[i] = exp(mub)*chl[i]^k[1] + exp(u[i]);
 
                tp_mn[i] = exp(d1[lakenum[i]])*exp(u[i])^k[2] +
-                          exp(d2[seasnum[i]])*chl[i]^k[3] + dtp[i];
+                          exp(d2[lakenum[i]])*chl[i]^k[3] + dtp[i];
             }
         }
         model {
@@ -170,8 +170,8 @@ tss.explore <- function(df1, matout = NULL,varout = NULL,
             etad2a ~ normal(0,1);
 //            etad2b ~ normal(0,1);
 
-            k[1] ~ normal(0.832,0.013);  // from VSS model
- //           k[1] ~ normal(1,1);
+            k[1] ~ normal(0.85,0.01);  // from VSS model
+      //      k[1] ~ normal(1,1);
             k[2] ~ normal(1,1);
             k[3] ~ normal(1,1);
 
@@ -229,8 +229,8 @@ tss.explore <- function(df1, matout = NULL,varout = NULL,
             print(str(datstan))
 
             fit <- stan(model_code = modstan,
-                        data = datstan, iter = 2000, chains = nchains,
-                        warmup = 800, thin= 3,
+                        data = datstan, iter = 1000, chains = nchains,
+                        warmup = 500, thin= 2,
                         control = list(adapt_delta = 0.98, max_treedepth = 14))
 
             save(fit, file = "fitmo.rda")

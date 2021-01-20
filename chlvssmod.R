@@ -33,7 +33,6 @@ chlvssmod <- function(df1,varout = NULL,
     print(max(df1$lakenum))
     print(nrow(df1))
     print(table(df1$year))
-    stop()
 
     ## scale variables
     varlist<- c("vss", "chl")
@@ -81,8 +80,8 @@ chlvssmod <- function(df1,varout = NULL,
             sigu ~ cauchy(0,3);
             mub ~ normal(0,3);
             k ~ normal(1,1);
-            sigvss ~ cauchy(0,3);
-            vss ~ lognormal(log(vss_mn), sigvss);
+            sigvss ~ normal(0.1,0.01);
+            vss ~ student_t(4,log(vss_mn), sigvss);
         }
     '
     rmsout <- function(x,y) sqrt(sum((x-y)^2)/length(x))
@@ -98,7 +97,7 @@ chlvssmod <- function(df1,varout = NULL,
 
         datstan <- list(n = nrow(df1),
                         nlake = max(df1$lakenum),lakenum = df1$lakenum,
-                        vss = df1$vss,
+                        vss = log(df1$vss),
                         chl = df1$chl)
         print(str(datstan))
 

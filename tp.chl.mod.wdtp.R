@@ -172,7 +172,7 @@ ntumodel <- function(df1, varout = NULL, varout.mo = NULL, runmod = T) {
            for (i in 1:n) {
                turb_mn[i] = exp(b[econum[i]])*chl[i]^muk[1] + exp(u[i]);
                tp_mn[i] = exp(d1s[i]) +
-                          exp(d2[econum[i]])*exp(u[i])^muk[2] +
+      //                    exp(d2[econum[i]])*exp(u[i])^muk[2] +
                           exp(mud[3])*chl[i]^muk[3];
            }
 
@@ -250,7 +250,7 @@ ntumodel <- function(df1, varout = NULL, varout.mo = NULL, runmod = T) {
         y <-  varout$mud[,3]  -
             varout$muk[,3]*log(chlsc) +
                 varout$muk[,3]*x[i]
-        mnval <- varout.mo$d2[,3]
+        mnval <- varout.mo$d2[,4]
         y2 <- log(mn.val["tp"]) +
              mnval -
             varout.mo$k[,3]*log(mn.val["chl"]) +
@@ -510,8 +510,8 @@ ntumodel <- function(df1, varout = NULL, varout.mo = NULL, runmod = T) {
 ##  run post processing.
 #fitout <- ntumodel(dat.merge.all, runmod = T)
 ## post processing
-varout.temp <- extract(fitout, pars = c("muk", "mub", "b",  "d2","d1s",
-                              "muu", "muu_mn", "u", "mud", "sigd"))
-umean <- apply(varout.temp$u, 2, mean)
+#varout.nou <- extract(fitout, pars = c("muk", "mub", "b",  "d2","d1s",
+#                              "muu", "muu_mn", "u", "mud", "sigd"))
+umean <- apply(varout.nou$u, 2, mean)
 
-ntumodel(dat.merge.all, varout = varout.temp, varout.mo = varout.mo, runmod = F)
+ntumodel(dat.merge.all, varout = varout.p.nat, varout.mo = varout.mo.d1L.d2T, runmod = F)
