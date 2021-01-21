@@ -63,6 +63,14 @@ ntumodel <- function(df1, varout = NULL, varout.mo = NULL, runmod = T) {
  #   df1 <- df1[isamp,]
   #  print(nrow(df1))
 
+    ## make seas factor
+    xcut <- seq(min(df1$yday.x), by = 30, length = 6)
+    xcut[6] <- max(df1$yday.x)
+    hist(df1$yday.x)
+    abline(v = xcut)
+    seasfac <- cut(df1$yday.x, xcut, include.lowest = T)
+    df1$seasnum <- as.numeric(seasfac)
+
     ## reset factor levels for state
     df1$state <- factor(df1$st.nla2012)
     df1$statenum <- as.numeric(df1$state)
@@ -89,6 +97,8 @@ ntumodel <- function(df1, varout = NULL, varout.mo = NULL, runmod = T) {
                     tp = log(df1$ptl.result),
                     chl = df1$chl.sc,
                     depth = log(df1$index.site.depth),
+                    nseas = max(df1$seasnum),
+                    seasnum = df1$seasnum,
                     a = c(4, -1))
 
     print(str(datstan))
@@ -105,6 +115,8 @@ ntumodel <- function(df1, varout = NULL, varout.mo = NULL, runmod = T) {
             vector[n] chl;         // Scaled Chl
             vector[n] depth;
             real a[2];
+            int nseas;
+            int seasnum[n];
         }
         parameters {
             real muu_mn;             // grand mean ntu_np
@@ -117,13 +129,16 @@ ntumodel <- function(df1, varout = NULL, varout.mo = NULL, runmod = T) {
             vector[neco] etab;
             real<lower = 0> muk[3];  // exponents on chl and u in models
             vector[3] mud;           // mean coef for tp model
-            real<lower = 0> sigd[2];// SD of ecoregion- or depth-specific coef
+            real<lower = 0> sigd[3];// SD of ecoregion- or depth-specific coef
 
             vector[n] etad1;
             vector[neco] etad2;
             real<lower = 0> sigtp;    // measurement error of tp
 
             real am[2];
+
+            vector[nseas] etad3;
+
 
         }
         transformed parameters {
@@ -134,6 +149,7 @@ ntumodel <- function(df1, varout = NULL, varout.mo = NULL, runmod = T) {
             // difference among depths. just using mud[1]
             vector[n] d1s;
             vector[neco]  d2;
+            vector[nseas] d3;
 
             b = mub + etab*sigb;
 
@@ -142,6 +158,7 @@ ntumodel <- function(df1, varout = NULL, varout.mo = NULL, runmod = T) {
 
             d1s = am[1] + am[2]*depth + sigd[1]*etad1;
             d2 = mud[2] + sigd[2]*etad2;
+            d3 = mud[3] + sigd[3]*etad3;
         }
         model {
             vector[n] turb_mn;
@@ -163,6 +180,7 @@ ntumodel <- function(df1, varout = NULL, varout.mo = NULL, runmod = T) {
 
             etad1 ~ normal(0,1);
             etad2 ~ normal(0,1);
+            etad3 ~ normal(0,1);
 
             sigtp ~ normal(0.123, 0.002);
 
@@ -173,7 +191,7 @@ ntumodel <- function(df1, varout = NULL, varout.mo = NULL, runmod = T) {
                turb_mn[i] = exp(b[econum[i]])*chl[i]^muk[1] + exp(u[i]);
                tp_mn[i] = exp(d1s[i]) +
       //                    exp(d2[econum[i]])*exp(u[i])^muk[2] +
-                          exp(mud[3])*chl[i]^muk[3];
+                          exp(d3[seasnum[i]])*chl[i]^muk[3];
            }
 
             // Eqn 25 from document
@@ -508,10 +526,10 @@ ntumodel <- function(df1, varout = NULL, varout.mo = NULL, runmod = T) {
 
 ## runmod variable set to T to run simulation and set to F to
 ##  run post processing.
-#fitout <- ntumodel(dat.merge.all, runmod = T)
+fitout <- ntumodel(dat.merge.all, runmod = T)
 ## post processing
 #varout.nou <- extract(fitout, pars = c("muk", "mub", "b",  "d2","d1s",
 #                              "muu", "muu_mn", "u", "mud", "sigd"))
-umean <- apply(varout.nou$u, 2, mean)
+#umean <- apply(varout.nou$u, 2, mean)
 
-ntumodel(dat.merge.all, varout = varout.p.nat, varout.mo = varout.mo.d1L.d2T, runmod = F)
+#ntumodel(dat.merge.all, varout = varout.p.nat, varout.mo = varout.mo.d1L.d2T, runmod = F)
