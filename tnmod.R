@@ -3,6 +3,7 @@
 ## 12.18.2020: Model seston
 ## 1.4.2021: Use srp rather than dtp in model, and ntu rather than tss
 ## 1.5.2021: TN model
+## 1.22.2021: Change back to straight particulate matter model
 tnmod <- function(df1, matout = NULL,varout = NULL,
                         runmod = T, xvalid = F) {
 
@@ -12,26 +13,20 @@ tnmod <- function(df1, matout = NULL,varout = NULL,
     print(nrow(df1))
     print(summary(df1$flush.rate))
 
-    nperiod <- 4
-    df1$yday.q <- 1
-    incvec <- df1$month >= 3 & df1$month <= 5
-    df1$yday.q[incvec]<- 2
-    incvec <- df1$month >= 6 & df1$month <= 8
-    df1$yday.q[incvec]<- 3
-    incvec <- df1$month >= 9 & df1$month <= 11
-    df1$yday.q[incvec]<- 4
+    nperiod <- 6
+    df1$yday.q <- ceiling(df1$month*0.5)
     df1$yday.q <- factor(df1$yday.q)
+    print(table(df1$yday.q))
 
     incvec <- ! is.na(df1$don) & ! is.na(df1$chl) & ! is.na(df1$din) &
         ! is.na(df1$tn) & ! is.na(df1$doc) & ! is.na(df1$vss)
     df1 <- df1[incvec,]
     df1$lake <- factor(df1$lake)
-    print(table(df1$lake))
-    print(df1[1:10, c("tn", "din", "don")])
+
     df1$lakenum <- as.numeric(df1$lake)
     df1$seasnum <- as.numeric(df1$yday.q)
 
-    varlist<- c("tn", "chl", "doc", "vss")
+    varlist<- c("tn", "chl", "doc", "tss")
     mn.val <- apply(df1[, varlist],2,function(x) exp(mean(log(x))))
     save(mn.val, file = "mn.val.tnmo.rda")
 
@@ -39,16 +34,13 @@ tnmod <- function(df1, matout = NULL,varout = NULL,
     df1$din <- df1$din/mn.val["tn"]
     df1$don <- df1$don/mn.val["tn"]
     df1$dtn <- df1$dtn/mn.val["tn"]
-
-    ## drop one big outlier
-    print(summary(df1$chl))
-    print(summary(df1$tn))
-    print(summary(df1$din))
+    df1$vss <- df1$vss/mn.val["tss"]
 
     ## drop pn measurements near zero or negative
     pn <- df1$tn - df1$din - df1$don
     incvec <- pn < 1e-10
     print(sum(incvec))
+
     df1 <- df1[!incvec,]
 
        modstan <- '
@@ -56,86 +48,94 @@ tnmod <- function(df1, matout = NULL,varout = NULL,
             int n;
             int nlake;
             int lakenum[n];
+            int nseas;
+            int seasnum[n];
             vector[n] tn;
-            vector[n] doc;
-            vector[n] din;
-            vector[n] don;
+            vector[n] dtn;
             vector[n] chl;
-            vector[n] vss;
+            vector[n] tss;
         }
         parameters {
             real k[3];
-            vector[3] mud;
-            real<lower = 0> sigd;
-            vector[nlake] etad;
+            vector[2] mud;
+            real<lower = 0> sigd[2];
+            vector[nseas] etad1;
+            vector[nlake] etad2;
 
             real<lower = 0> sigtn;
 
             real muu;
             real<lower =0> sigu;
             vector[n] etau;
+
             real mub;
-            real<lower = 0> sigvss;
+            real<lower = 0> sigtss;
 
         }
         transformed parameters {
             vector[n] tn_mn;
             vector[n] u;
-            vector[n] vss_mn;
-            vector[nlake] d3;
+            vector[n] tss_mn;
 
-            d3 = mud[3] + etad*sigd;
+            vector[nseas] d1;
+            vector[nlake] d2;
+
+            d1 = mud[1] + etad1*sigd[1];
+            d2 = mud[2] + etad2*sigd[2];
 
             u = muu + sigu*etau;
 
             for (i in 1:n) {
-                vss_mn[i] = exp(mub)*chl[i]^k[3] + exp(u[i]);
+                tss_mn[i] = exp(mub)*chl[i]^k[3] + exp(u[i]);
 
-                tn_mn[i] = din[i] + exp(mud[1])*chl[i]^k[1] +
-                        exp(mud[2])*exp(u[i])^k[2] + exp(d3[lakenum[i]])*doc[i];
-
-//                tn_mn[i] = din[i] + don[i] + exp(mud[1])*chl[i]^k[1] +
-//                        exp(mud[2])*exp(u[i])^k[2];
+                tn_mn[i] = dtn[i] + exp(d1[seasnum[i]])*chl[i]^k[1] +
+                        exp(d2[lakenum[i]])*exp(u[i])^k[2];
             }
         }
         model {
             mud ~ normal(0,3);
             sigd ~ cauchy(0,3);
-            etad ~ normal(0,1);
+            etad1 ~ normal(0,1);
+            etad2 ~ normal(0,1);
 
-            k[3] ~ normal(0.807,0.012);
+            k[3] ~ normal(0.85,0.01);
             k[1] ~ normal(1,1);
             k[2] ~ normal(1,1);
             muu ~ normal(0,3);
             etau ~ normal(0,1);
             sigu ~ cauchy(0,3);
-            sigvss ~ cauchy(0,3);
+            sigtss ~ normal(0.1,0.002);
             mub ~ normal(0,3);
 
             sigtn ~ cauchy(0,3);
 
-            vss ~ lognormal(log(vss_mn), sigvss);
-            tn ~ lognormal(log(tn_mn), sigtn);
+            tss ~ student_t(4,log(tss_mn), sigtss);
+            tn ~ student_t(4,log(tn_mn), sigtn);
         }
     '
-    rmsout <- function(x,y) sqrt(sum((x-y)^2)/length(x))
-    gettn <- function(df, varout) {
+    rmsout <- function(x,y) sqrt(sum((x-y)^2, na.rm = T)/
+                                     min(sum(! is.na(x)), sum(!is.na(y))))
+    gettn <- function(df, varout, withu=T) {
         k <- apply(varout$k,2,mean)
         mud <- apply(varout$mud, 2, mean)
         mub <- mean(varout$mub)
-        u <- apply(varout$u, 2, mean)
-        d3 <- apply(varout$d3, 2, mean)
+        d1 <- apply(varout$d1, 2, mean)
+        d2 <- apply(varout$d2, 2, mean)
 
-#        tnpred <- df$din + df$don + exp(mud[1])*df$chl^k[1] +
-#            exp(mud[2])*exp(u)^k[2]
+        if (withu) {
+            u <- exp(apply(varout$u, 2, mean))
+        }
+        else {
+            u <- df$vss - exp(mub)*df$chl^k[3]
+            u[u <= 0] <- NA
+        }
 
-        tnpred <- df$din +  exp(mud[1])*df$chl^k[1] +
-            exp(mud[2])*exp(u)^k[2] + exp(d3[df$lakenum])*df$doc
-        print(summary(tnpred))
+        tnpred <- df$dtn + exp(d1[df$seasnum])*df$chl^k[1] +
+            exp(d2[df$lakenum])*u^k[2]
 
         return(tnpred)
     }
-    extractvars <- c("mud", "k", "u", "mub")
+    extractvars <- c("mud", "k", "u", "mub", "d1", "d2")
 
     if (runmod) {
         require(rstan)
@@ -146,29 +146,25 @@ tnmod <- function(df1, matout = NULL,varout = NULL,
         if (! xvalid) {
             datstan <- list(n = nrow(df1),
                             nlake = max(df1$lakenum),lakenum = df1$lakenum,
-                            nseas = nperiod, seasnum = df1$seasnum,
-                            tn = df1$tn,
-                            din = df1$din,
-                            doc = df1$doc,
+                            nseas = 6, seasnum = df1$seasnum,
+                            tn = log(df1$tn),
+                            dtn = df1$dtn,
                             chl = df1$chl,
-                            don = df1$don,
-                            vss = df1$vss)
+                            tss = log(df1$vss))
             print(str(datstan))
 
             fit <- stan(model_code = modstan,
                         data = datstan, iter = 1000, chains = nchains,
                         warmup = 400, thin= 1,
                         control = list(adapt_delta = 0.98, max_treedepth = 14))
-            return(fit)
+            save(fit, file = "fitout.rda")
             varout <- extract(fit, pars = extractvars)
-            save(varout, file = "varout.rda")
+
             tnpred <- gettn(df1, varout)
-            print(summary(tnpred))
-            print(summary(log(df1$tn)))
             dev.new()
             plot(log(tnpred), log(df1$tn))
             abline(0,1)
-            print(rmsout(log(tnpred), log(df1$tn)))
+            cat("Internal RMS:", rmsout(log(tnpred), log(df1$tn)), "\n")
 
             return(varout)
         }
@@ -216,17 +212,63 @@ tnmod <- function(df1, matout = NULL,varout = NULL,
         }
     }
 
-    par(mar = c(4,4,1,1), mfrow = c(1,2))
-    plot(log(df1$chl), log(df1$tn - df1$don - df1$din))
     k <- apply(varout$k, 2, mean)
-    mud <- apply(varout$mud, 2, mean)
-    abline(mud[1], k[1])
-    stop()
+    mub <- mean(varout$mub)
+    u <- apply(varout$u, 2, mean)
 
-    tnpred <- gettn(df1, varout)
-    plot(log(df1$tn), log(tnpred))
+    d1 <- apply(varout$d1, 2, quantile, prob = c(0.05, 0.5, 0.95))
+    d2 <- apply(varout$d2, 2, quantile, prob = c(0.05, 0.5, 0.95))
+
+    dev.new()
+    ucalc <- df1$vss - exp(mub)*df1$chl^k[3]
+    plot(ucalc, exp(u))
+    abline(0,1)
+
+    tsspred <- exp(mub)*df1$chl^k[3] + exp(u)
+    plot(log(df1$chl), log(df1$vss))
+    abline(mub, k[3])
+
+
+    tnpred <- gettn(df1, varout, withu = F)
+    plot(log(tnpred), log(df1$tn))
     abline(0,1)
     cat("Internal RMS:", rmsout(log(tnpred), log(df1$tn)), "\n")
+    stop()
+
+    dev.new()
+    par(mar = c(4,4,1,1), mfrow = c(1,2))
+
+    nd1 <- ncol(d1)
+    plot(1:nd1, d1[2,], ylim = range(d1))
+    segments(1:nd1, d1[1,], 1:nd1, d1[3,])
+    nd2 <- ncol(d2)
+    plot(1:nd2, d2[2,], ylim = range(d2))
+    segments(1:nd2, d2[1,], 1:nd2, d2[3,])
+
+
+
+    dev.new()
+    par(mar = c(4,4,1,1), mfrow = c(2,3))
+    for (i in 1:6) {
+        incvec <- df1$seasnum == i
+        plot(log(df1$chl), log(df1$tn - df1$dtn), type = "n")
+        points(log(df1$chl)[incvec], log(df1$tn - df1$dtn)[incvec], pch = 21)
+        abline(d1[2,i], k[1])
+    }
+    stop()
+
+    mud <- apply(varout$mud, 2, mean)
+
+    abline(mud[1], k[1])
+
+
+    plot(log(dat.merge.all$chl/mn.val["chl"]),
+         log((dat.merge.all$ntl.result-dat.merge.all$no3no2.result)/
+                 (1000*mn.val["tn"])))
+    abline(mud[1], k[1])
+
+
+
     stop()
     print(summary(matout))
     dev.new()
@@ -241,5 +283,5 @@ tnmod <- function(df1, matout = NULL,varout = NULL,
     return()
 
 }
-#fitout <- tnmod(moi3.all, runmod = T, xvalid = F)
-tnmod(moi3.all, varout = varout, runmod = F, xvalid = F)
+#varout.mon.d1T.d2Lv <- tnmod(moi3.all, runmod = T, xvalid = F)
+tnmod(moi3.all, varout = varout.mon.d1T.d2Lv, runmod = F, xvalid = F)

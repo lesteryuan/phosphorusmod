@@ -288,7 +288,56 @@ tss.explore <- function(df1, matout = NULL,varout = NULL,
         }
     }
 
+    ## plot effect of space on d1
+    ## compute mean u
+    um <- mean(apply(varout$u, 2, mean))
+    print(um)
+    dftemp <- unique.data.frame(df1[, c("lakenum", "flush.rate")])
+    dftemp <- dftemp[order(dftemp$lakenum),]
+    d1 <- apply(varout$d1, 2, mean)
 
+    predout <- matrix(NA, ncol = 3, nrow = 15)
+    for (i in 1:15) {
+        y <- mn.val["tp"]*exp(varout$d1[,i])*exp(um)^varout$k[,2]/
+            (exp(um)*mn.val["tss"])
+        predout[i,] <- quantile(y, prob = c(0.05, 0.5, 0.95))
+    }
+    png(width = 3, height = 2.5, pointsize = 6, units = "in", res = 600,
+        file = "lakessp.png")
+    par(mar = c(4,4,1,1), mgp = c(2.3,1,0), bty = "l")
+    plot(log(dftemp$flush.rate), predout[,2], type = "n",axes = F,
+         xlab = "Flush rate (1/yr)",
+         ylab = expression(P/SS~(mu*g/m*g)), ylim = range(predout))
+    logtick.exp(0.001, 10, c(1), c(F,F))
+    segments(log(dftemp$flush.rate), predout[,1],
+             log(dftemp$flush.rate), predout[,3], col = "grey39")
+    points(log(dftemp$flush.rate), predout[,2], col = "grey39",
+           bg = "white")
+    axis(2)
+    box(bty = "l")
+    dev.off()
+
+    ## plot effect of time on d2
+    chl0 <- 10
+    predout <- matrix(NA, ncol = 3, nrow = 6)
+
+    for (i in 1:6) {
+        y <- mn.val["tp"]*exp(varout$d2[,i])/(mn.val["chl"]^varout$k[,3])*chl0^(varout$k[,3]-1)
+        predout[i,] <- quantile(y, prob = c(0.05, 0.5, 0.95))
+    }
+    png(width = 3, height = 2.5, pointsize = 6, units ="in", res = 600,
+        file = "timechlp.png")
+    par(mar = c(4,4,1,1), mgp = c(2.3,1,0), bty = "l")
+    plot(1:6, predout[,2], ylim = range(predout), type = "n", xlab = "",
+         ylab = expression(P/Chl~(mu*g/mu*g)), axes= F)
+    axis(2)
+    axis(1, at = 1:6, lab = c("Jan/Feb", "Mar/Apr", "May/Jun",
+                          "Jul/Aug", "Sep/Oct", "Nov/Dec"))
+    box(bty = "l")
+    segments(1:6, predout[,1], 1:6, predout[,3], col = "grey39")
+    points(1:6, predout[,2], pch = 21, col = "grey39", bg = "white")
+    dev.off()
+    stop()
 
     mub <- mean(varout$mub)
     u <- apply(varout$u, 2, mean)
@@ -327,9 +376,9 @@ tss.explore <- function(df1, matout = NULL,varout = NULL,
 
 }
 
-varout.mo <- tss.explore(moi3.all, runmod = T, xvalid= F)
+#varout.mo <- tss.explore(moi3.all, runmod = T, xvalid= F)
 #mattss.d2l.d1tl <-  tss.explore(moi3.all, runmod = T, xvalid= T)
 
 #tss.explore(moi3.all, matout = mattss.d2l.d1tl, varout = vartss.d2l.d1tl, runmod = F, xvalid = F)
 
-tss.explore(moi3.all, varout = varout.mo, runmod = F, xvalid = F)
+tss.explore(moi3.all, varout = varout.mo.d1L.d2T, runmod = F, xvalid = F)
