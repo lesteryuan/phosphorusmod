@@ -60,7 +60,7 @@ tnmod <- function(df1, matout = NULL,varout = NULL,
             vector[2] mud;
             real<lower = 0> sigd[2];
             vector[nseas] etad1;
-            vector[nlake] etad2;
+            vector[nseas] etad2;
 
             real<lower = 0> sigtn;
 
@@ -78,7 +78,7 @@ tnmod <- function(df1, matout = NULL,varout = NULL,
             vector[n] tss_mn;
 
             vector[nseas] d1;
-            vector[nlake] d2;
+            vector[nseas] d2;
 
             d1 = mud[1] + etad1*sigd[1];
             d2 = mud[2] + etad2*sigd[2];
@@ -89,7 +89,7 @@ tnmod <- function(df1, matout = NULL,varout = NULL,
                 tss_mn[i] = exp(mub)*chl[i]^k[3] + exp(u[i]);
 
                 tn_mn[i] = dtn[i] + exp(d1[seasnum[i]])*chl[i]^k[1] +
-                        exp(d2[lakenum[i]])*exp(u[i])^k[2];
+                        exp(d2[seasnum[i]])*exp(u[i])^k[2];
             }
         }
         model {
@@ -131,16 +131,17 @@ tnmod <- function(df1, matout = NULL,varout = NULL,
         }
 
         tnpred <- df$dtn + exp(d1[df$seasnum])*df$chl^k[1] +
-            exp(d2[df$lakenum])*u^k[2]
+            exp(d2[df$seasnum])*u^k[2]
 
         return(tnpred)
     }
     extractvars <- c("mud", "k", "u", "mub", "d1", "d2")
 
+    nchains <- 3
     if (runmod) {
         require(rstan)
         rstan_options(auto_write = TRUE)
-        nchains <- 3
+
         options(mc.cores = nchains)
 
         if (! xvalid) {
@@ -170,7 +171,7 @@ tnmod <- function(df1, matout = NULL,varout = NULL,
         }
         else {
 
-            set.seed(1)
+            set.seed(2)
             require(loo)
             nfold <- 5
             ik <- kfold_split_random(nfold, nrow(df1))
@@ -180,24 +181,23 @@ tnmod <- function(df1, matout = NULL,varout = NULL,
                 dftemp2 <- df1[ik == jj,]
                 dftemp <- df1[ik != jj,]
                 datstan <- list(n = nrow(dftemp),
-                                nlake = max(dftemp$lakenum),lakenum = dftemp$lakenum,
-                                nseas = nperiod, seasnum = dftemp$seasnum,
-                                nvss = dftemp$nvss,
-                                tp = dftemp$tp,
-                                dtp = dftemp$dtp,
-                                ntu = dftemp$ntu,
-                                chl = dftemp$chl)
-                print(str(datstan))
+                                nlake = max(dftemp$lakenum),
+                                lakenum = dftemp$lakenum,
+                                nseas = 6, seasnum = dftemp$seasnum,
+                                tn = log(dftemp$tn),
+                                dtn = dftemp$dtn,
+                                chl = dftemp$chl,
+                                tss = log(dftemp$vss))
 
                 fit <- stan(model_code = modstan,
                             data = datstan, iter = 1000, chains = nchains,
-                            warmup = 500, thin= 2,
+                            warmup = 400, thin= 2,
                             control = list(adapt_delta = 0.98, max_treedepth = 14))
 
                 varout <- extract(fit, pars = extractvars)
-                tp.pred <- gettp(dftemp2, varout, withu = FALSE)
+                tnpred <- gettn(dftemp2, varout, withu = FALSE)
 
-                matval <- data.frame(pred = log(tp.pred), obs = log(dftemp2$tp))
+                matval <- data.frame(pred = log(tnpred), obs = log(dftemp2$tn))
 
                 if (jj == 1) {
                     matall <- matval
@@ -229,10 +229,15 @@ tnmod <- function(df1, matout = NULL,varout = NULL,
     abline(mub, k[3])
 
 
-    tnpred <- gettn(df1, varout, withu = F)
+    dev.new()
+    par(mar = c(4,4,1,1), mfrow = c(1,2))
+    tnpred <- gettn(df1, varout, withu = T)
     plot(log(tnpred), log(df1$tn))
     abline(0,1)
     cat("Internal RMS:", rmsout(log(tnpred), log(df1$tn)), "\n")
+    cat("External RMS:", rmsout(matout[,1], matout[,2]), "\n")
+    plot(matout[,1], matout[,2])
+    abline(0,1)
     stop()
 
     dev.new()
@@ -283,5 +288,7 @@ tnmod <- function(df1, matout = NULL,varout = NULL,
     return()
 
 }
-#varout.mon.d1T.d2Lv <- tnmod(moi3.all, runmod = T, xvalid = F)
-tnmod(moi3.all, varout = varout.mon.d1T.d2Lv, runmod = F, xvalid = F)
+#varout.mon.d1T.d2Tv <- tnmod(moi3.all, runmod = T, xvalid = F)
+#matout.mon.d1T.d2Tv <- tnmod(moi3.all, runmod = T, xvalid = T)
+tnmod(moi3.all, matout = matout.mon.d1T.d2Tv,
+      varout = varout.mon.d1T.d2Tv, runmod = F, xvalid = F)
