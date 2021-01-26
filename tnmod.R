@@ -30,6 +30,7 @@ tnmod <- function(df1, matout = NULL,varout = NULL,
     mn.val <- apply(df1[, varlist],2,function(x) exp(mean(log(x))))
     save(mn.val, file = "mn.val.tnmo.rda")
 
+
     for (i in varlist) df1[,i] <- df1[,i]/mn.val[i]
     df1$din <- df1$din/mn.val["tn"]
     df1$don <- df1$don/mn.val["tn"]
@@ -60,7 +61,7 @@ tnmod <- function(df1, matout = NULL,varout = NULL,
             vector[2] mud;
             real<lower = 0> sigd[2];
             vector[nseas] etad1;
-            vector[nseas] etad2;
+            vector[nlake] etad2;
 
             real<lower = 0> sigtn;
 
@@ -70,6 +71,7 @@ tnmod <- function(df1, matout = NULL,varout = NULL,
 
             real mub;
             real<lower = 0> sigtss;
+            vector[n] dtn_mn;
 
         }
         transformed parameters {
@@ -78,7 +80,7 @@ tnmod <- function(df1, matout = NULL,varout = NULL,
             vector[n] tss_mn;
 
             vector[nseas] d1;
-            vector[nseas] d2;
+            vector[nlake] d2;
 
             d1 = mud[1] + etad1*sigd[1];
             d2 = mud[2] + etad2*sigd[2];
@@ -88,8 +90,8 @@ tnmod <- function(df1, matout = NULL,varout = NULL,
             for (i in 1:n) {
                 tss_mn[i] = exp(mub)*chl[i]^k[3] + exp(u[i]);
 
-                tn_mn[i] = dtn[i] + exp(d1[seasnum[i]])*chl[i]^k[1] +
-                        exp(d2[seasnum[i]])*exp(u[i])^k[2];
+                tn_mn[i] = dtn_mn[i] + exp(d1[seasnum[i]])*chl[i]^k[1] +
+                        exp(d2[lakenum[i]])*exp(u[i])^k[2];
             }
         }
         model {
@@ -109,6 +111,7 @@ tnmod <- function(df1, matout = NULL,varout = NULL,
 
             sigtn ~ cauchy(0,3);
 
+            dtn ~ normal(dtn_mn, 0.10);
             tss ~ student_t(4,log(tss_mn), sigtss);
             tn ~ student_t(4,log(tn_mn), sigtn);
         }
@@ -131,7 +134,7 @@ tnmod <- function(df1, matout = NULL,varout = NULL,
         }
 
         tnpred <- df$dtn + exp(d1[df$seasnum])*df$chl^k[1] +
-            exp(d2[df$seasnum])*u^k[2]
+            exp(d2[df$lakenum])*u^k[2]
 
         return(tnpred)
     }
@@ -288,7 +291,7 @@ tnmod <- function(df1, matout = NULL,varout = NULL,
     return()
 
 }
-#varout.mon.d1T.d2Tv <- tnmod(moi3.all, runmod = T, xvalid = F)
+varout.mon.test <- tnmod(moi3.all, runmod = T, xvalid = F)
 #matout.mon.d1T.d2Tv <- tnmod(moi3.all, runmod = T, xvalid = T)
-tnmod(moi3.all, matout = matout.mon.d1T.d2Tv,
-      varout = varout.mon.d1T.d2Tv, runmod = F, xvalid = F)
+#tnmod(moi3.all, matout = matout.mon.d1T.d2Tv,
+#      varout = varout.mon.d1T.d2Tv, runmod = F, xvalid = F)

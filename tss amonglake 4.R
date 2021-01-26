@@ -2,7 +2,7 @@
 # 1/31/2019: model TSS with changing coef with chl
 ## 12.18.2020: Model seston
 ## add diagnostics
-tss.explore <- function(df1, matout = NULL,varout = NULL,
+tss.explore <- function(df1, matout = NULL,varout = NULL, varout.n = NULL,
                         runmod = T, xvalid = F) {
 
     df1$vss <- as.numeric(as.character(df1$vss))
@@ -69,7 +69,6 @@ tss.explore <- function(df1, matout = NULL,varout = NULL,
     predout <- predict(mod2, se.fit = T)
     print(predout)
 
-
     load("cutp.depth.rda")
 #    abline(v = cutp.depth)
     cutm <- 0.5*(cutp.depth[-1] + cutp.depth[-length(cutp.depth)])
@@ -85,7 +84,8 @@ tss.explore <- function(df1, matout = NULL,varout = NULL,
 #    points(dmean, pmean, pch = 16)
 #    save(prior1, file = "prior1.rda")
 
-    varlist<- c("tss", "chl", "tp", "ntu")
+
+    varlist<- c("tss", "chl", "tp", "ntu", "tn")
     mn.val <- apply(df1[, varlist],2,function(x) exp(mean(log(x))))
     print(mn.val)
     save(mn.val, file = "mn.val.mo.rda")
@@ -125,7 +125,7 @@ tss.explore <- function(df1, matout = NULL,varout = NULL,
 
             vector[2] mud;
             real<lower = 0> sigd[2];
-            vector[nlake] etad1;
+            vector[nseas] etad1;
             vector[nseas] etad2;
 
             real<lower = 0> sigtss;
@@ -136,7 +136,7 @@ tss.explore <- function(df1, matout = NULL,varout = NULL,
             vector[n] u;
             vector[n] tp_mn;
             vector[n] tss_mn;
-            vector[nlake] d1;
+            vector[nseas] d1;
             vector[nseas] d2;
 
             u = muu + etau*sigu;
@@ -150,7 +150,7 @@ tss.explore <- function(df1, matout = NULL,varout = NULL,
             for (i in 1:n) {
                tss_mn[i] = exp(mub)*chl[i]^k[1] + exp(u[i]);
 
-               tp_mn[i] = exp(d1[lakenum[i]])*chl[i]^k[2] + dtp[i] +
+               tp_mn[i] = exp(d1[seasnum[i]])*chl[i]^k[2] + dtp[i] +
                          exp(d2[seasnum[i]])*exp(u[i])^k[3];
 
             }
@@ -200,7 +200,7 @@ tss.explore <- function(df1, matout = NULL,varout = NULL,
 
         tppred <- rep(NA, times = nrow(df))
         for (i in 1:nrow(df)) {
-            tppred[i] <- exp(d1[df$lakenum[i]])*df$chl[i]^k[2] + df$dtp[i] +
+            tppred[i] <- exp(d1[df$seasnum[i]])*df$chl[i]^k[2] + df$dtp[i] +
                          exp(d2[df$seasnum[i]])*u[i]^k[3]
 
         }
@@ -289,74 +289,64 @@ tss.explore <- function(df1, matout = NULL,varout = NULL,
     }
 
 
-
-    dev.new()
-    tppred <- gettp(df1, varout, withu = TRUE)
-    print(summary(tppred))
-    plot(log(tppred), log(df1$tp))
-    abline(0,1)
-    cat("Internal validation:", rmsout(log(tppred), log(df1$tp)), "\n")
-    plot(matout[,1], matout[,2])
-    abline(0,1)
-    cat("External validation:", rmsout(matout[,1], matout[,2]), "\n")
-    stop()
-
-
-
-
-
-
-
-    mub <- mean(varout$mub)
-    k <- apply(varout$k, 2, mean)
-    u <- apply(varout$u, 2, mean)
-    upred <- df1$tss - exp(mub)*df1$chl^k[1]
-    dev.new()
-    plot(log(upred), u)
-    abline(0,1)
-    stop()
-    ## plot effect of space on d1
-    ## compute mean u
-
-
-    um <- mean(apply(varout$u, 2, mean))
-    print(um)
     dftemp <- unique.data.frame(df1[, c("lakenum", "flush.rate")])
     dftemp <- dftemp[order(dftemp$lakenum),]
-    d1 <- apply(varout$d1, 2, mean)
+    d2 <- apply(varout$d2, 2, mean)
+    um <- mean(apply(varout$u, 2, mean))
+
+    umn <- mean(apply(varout.n$u,2, mean))
 
     predout <- matrix(NA, ncol = 3, nrow = 15)
+    predout2 <- matrix(NA, ncol = 3, nrow = 15)
     for (i in 1:15) {
-        y <- mn.val["tp"]*exp(varout$d1[,i])*exp(um)^varout$k[,2]/
+        y <- mn.val["tp"]*exp(varout$d2[,i])*exp(um)^varout$k[,3]/
             (exp(um)*mn.val["tss"])
+        y2 <- 1000*mn.val["tn"]*exp(varout.n$d2[,i])*exp(umn)^varout.n$k[,2]/
+            (exp(umn)*mn.val["tss"])
         predout[i,] <- quantile(y, prob = c(0.05, 0.5, 0.95))
+        predout2[i,] <- quantile(y2, prob = c(0.05, 0.5, 0.95))
     }
-    png(width = 3, height = 2.5, pointsize = 6, units = "in", res = 600,
+
+    png(width = 6, height = 2.5, pointsize = 6, units = "in", res = 600,
         file = "lakessp.png")
-    par(mar = c(4,4,1,1), mgp = c(2.3,1,0), bty = "l")
+    par(mar = c(4,4,1,1), mgp = c(2.3,1,0), bty = "l", mfrow = c(1,2))
     plot(log(dftemp$flush.rate), predout[,2], type = "n",axes = F,
          xlab = "Flush rate (1/yr)",
          ylab = expression(P/SS~(mu*g/m*g)), ylim = range(predout))
     logtick.exp(0.001, 10, c(1), c(F,F))
     segments(log(dftemp$flush.rate), predout[,1],
              log(dftemp$flush.rate), predout[,3], col = "grey39")
-    points(log(dftemp$flush.rate), predout[,2], col = "grey39",
+    points(log(dftemp$flush.rate), predout[,2], col = "grey39", pch = 21,
            bg = "white")
     axis(2)
     box(bty = "l")
-    dev.off()
 
-    ## plot effect of time on d2
+    plot(log(dftemp$flush.rate), predout2[,2], type = "n",axes = F,
+         xlab = "Flush rate (1/yr)",
+         ylab = expression(N/VSS~(mu*g/m*g)), ylim = range(predout2))
+    logtick.exp(0.001, 10, c(1), c(F,F))
+    segments(log(dftemp$flush.rate), predout2[,1],
+             log(dftemp$flush.rate), predout2[,3], col = "grey39")
+    points(log(dftemp$flush.rate), predout2[,2], col = "grey39", pch = 21,
+           bg = "white")
+    axis(2)
+    box(bty = "l")
+
+    dev.off()
+    ## plot effect of time on d1
     chl0 <- 10
     predout <- matrix(NA, ncol = 3, nrow = 6)
-
+    predout2 <- matrix(NA, ncol = 3, nrow = 6)
     for (i in 1:6) {
-        y <- mn.val["tp"]*exp(varout$d2[,i])/(mn.val["chl"]^varout$k[,3])*chl0^(varout$k[,3]-1)
+        y <- mn.val["tp"]*exp(varout$d1[,i])/(mn.val["chl"]^varout$k[,2])*chl0^(varout$k[,2]-1)
+        y2 <- 1000*mn.val["tn"]*exp(varout.n$d1[,i])/(mn.val["chl"]^varout.n$k[,1])*chl0^(varout.n$k[,1]-1)
         predout[i,] <- quantile(y, prob = c(0.05, 0.5, 0.95))
+        predout2[i,] <- quantile(y2, prob = c(0.05, 0.5, 0.95))
     }
-    png(width = 3, height = 2.5, pointsize = 6, units ="in", res = 600,
+    png(width = 6, height = 2.5, pointsize = 6, units ="in", res = 600,
         file = "timechlp.png")
-    par(mar = c(4,4,1,1), mgp = c(2.3,1,0), bty = "l")
+
+    par(mar = c(4,4,1,1), mgp = c(2.3,1,0), bty = "l", mfrow = c(1,2))
     plot(1:6, predout[,2], ylim = range(predout), type = "n", xlab = "",
          ylab = expression(P/Chl~(mu*g/mu*g)), axes= F)
     axis(2)
@@ -365,9 +355,20 @@ tss.explore <- function(df1, matout = NULL,varout = NULL,
     box(bty = "l")
     segments(1:6, predout[,1], 1:6, predout[,3], col = "grey39")
     points(1:6, predout[,2], pch = 21, col = "grey39", bg = "white")
-    dev.off()
-    stop()
 
+    plot(1:6, predout2[,2], ylim = range(predout2), type = "n", xlab = "",
+         ylab = expression(N/Chl~(mu*g/mu*g)), axes= F)
+    axis(2)
+    axis(1, at = 1:6, lab = c("Jan/Feb", "Mar/Apr", "May/Jun",
+                          "Jul/Aug", "Sep/Oct", "Nov/Dec"))
+    box(bty = "l")
+    segments(1:6, predout2[,1], 1:6, predout2[,3], col = "grey39")
+    points(1:6, predout2[,2], pch = 21, col = "grey39", bg = "white")
+
+
+    dev.off()
+    print(predout2[,2]/predout[,2])
+    stop()
     mub <- mean(varout$mub)
     u <- apply(varout$u, 2, mean)
 
@@ -385,7 +386,9 @@ tss.explore <- function(df1, matout = NULL,varout = NULL,
 
 }
 
-#varout.mo.d1L.d2T <- tss.explore(moi3.all, runmod = T, xvalid= F)
-#matout.mo.d1L.d2T <-  tss.explore(moi3.all, runmod = T, xvalid= T)
+#varout.mo.d1T.d2T <- tss.explore(moi3.all, runmod = T, xvalid= F)
+#matout.mo.d1T.d2T <-  tss.explore(moi3.all, runmod = T, xvalid= T)
 
-tss.explore(moi3.all, matout = matout.mo.d1L.d2T, varout = varout.mo.d1L.d2T, runmod = F, xvalid = F)
+tss.explore(moi3.all, matout = matout.mo.d1T.d2L, varout = varout.mo.d1T.d2L,
+            varout.n = varout.mon.d1T.d2Lv,
+            runmod = F, xvalid = F)
