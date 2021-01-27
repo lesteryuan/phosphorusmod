@@ -3,7 +3,7 @@
 
 tn.model <- function(df1, varout = NULL, varout.mo = NULL, runmod = F) {
     require(rstan)
-    nchains <- 3    # number of chains
+    nchains <- 6    # number of chains
 
     ecosel <- 65              # pick ecoregion
     chltarg <- 10             # pick chl target
@@ -62,6 +62,8 @@ tn.model <- function(df1, varout = NULL, varout.mo = NULL, runmod = F) {
     df1$tn.sc <- df1$ntl.result/tnsc
     df1$nox.sc <- df1$no3no2.result/tnsc
 
+    save(tnsc, file = "tnsc.rda")
+
     ## make seas factor
     xcut <- seq(min(df1$yday.x), by = 30, length = 6)
     xcut[6] <- max(df1$yday.x)
@@ -81,8 +83,8 @@ tn.model <- function(df1, varout = NULL, varout.mo = NULL, runmod = F) {
                     doc = df1$doc.sc,
                     chl = df1$chl.sc,
                     nseas = max(df1$seasnum),
-                    seasnum = df1$seasnum,
-                    dp = log(81*docsc/tnsc))
+                    seasnum = df1$seasnum)
+
 
     print(str(datstan))
 
@@ -98,7 +100,6 @@ tn.model <- function(df1, varout = NULL, varout.mo = NULL, runmod = F) {
             vector[n] doc;       // scaled DOC
             int nseas;
             int seasnum[n];
-            real dp;
         }
         parameters {
             real muk;                // mean value of exponent on chl
@@ -147,8 +148,8 @@ tn.model <- function(df1, varout = NULL, varout.mo = NULL, runmod = F) {
         rstan_options(auto_write = TRUE)
         options(mc.cores = nchains)
         fit <- stan(model_code = modstan,
-                    data = datstan, iter = 900, chains = nchains,
-                    warmup = 300, thin = 2)
+                    data = datstan, iter = 2400, chains = nchains,
+                    warmup = 600, thin = 3)
         return(fit)
     }
 
@@ -158,29 +159,6 @@ tn.model <- function(df1, varout = NULL, varout.mo = NULL, runmod = F) {
 
     mud<- apply(varout$mud, 2, mean)
     muk <- mean(varout$muk)
-
-    dev.new()
-    par(mar = c(4,4,1,1), mfrow = c(2,2))
-    plot(log(moi3.all$doc), log(moi3.all$don) + log(1000))
-    mod <- lm(log(don) -log(doc) ~ 1, data = moi3.all)
-    print(summary(mod))
-
-    print(confint(mod))
-    abline(coef(mod) + log(1000), 1, col = "blue")
-
-    abline(mud[2] - log(docsc) + log(tnsc), 1)
-    plot(log(df1$doc.sc), log(df1$tn.sc - df1$nox.sc))
-    abline(mud[2], 1)
-
-    nsamp <- nrow(varout$mud)
-    y <- rnorm(nsamp, mean = varout$mud[,2], sd = varout$sigd[,2]) -
-        log(docsc) + log(tnsc) - log(1000)
-    print(quantile(y, prob = c(0.025, 0.5, 0.975)))
-    stop()
-    u <- apply(varout$u, 2, mean)
-    plot(log(df1$chl), u)
-    stop()
-
 
     d1.mo <- apply(varout.mo$d1, 2, mean)
     k.mo <- apply(varout.mo$k, 2, mean)
@@ -402,6 +380,6 @@ tn.model <- function(df1, varout = NULL, varout.mo = NULL, runmod = F) {
 ## save extracted variables to varout to post-process
 #fitout <- tn.model(dat.merge.all, runmod = T)
 
-varout.n <- extract(fitout, pars = c("muk", "mud", "d1", "sigd", "u"))
-tn.model(dat.merge.all, varout = varout.n, varout.mo = varout.mon.d1T.d2Lv,
+varout.n.limnat <- extract(fitout, pars = c("muk", "mud", "d1", "sigd", "u"))
+tn.model(dat.merge.all, varout = varout.n.limnat, varout.mo = varout.mon.d1T.d2Lv,
          runmod = F)

@@ -2,7 +2,9 @@
 ## 12.17.2019Cleaned and commented
 ## 1.6.2021: Testing adjustment for dtp
 ## 1.21.2021: Limit only model for TP
-ntumodel <- function(df1, varout = NULL, varout.mo = NULL, runmod = T) {
+ntumodel <- function(df1, varout = NULL, varout.mo = NULL,
+                     varout.n = NULL, varout.mo.n = NULL,
+                     runmod = T) {
 #    source("logtick.exp.R")
 #    source("binv.R")
 
@@ -41,10 +43,12 @@ ntumodel <- function(df1, varout = NULL, varout.mo = NULL, runmod = T) {
     incvec <- df1$chl > 1
     df1 <- df1[incvec,]
 
-    ## scale chl
+    ## scale chl and tp
     chlmn <- mean(log(df1$chl))
+    tpsc <- exp(mean(log(df1$ptl.result)))
     chlsc <- exp(chlmn)
     df1$chl.sc <- df1$chl/chlsc
+    df1$tp.sc <- df1$ptl.result/tpsc
 
     ## define 30 depth classes based on quantiles
     cutp.depth <- quantile(log(df1$index.site.depth), prob = seq(0, 1,length = 31))
@@ -87,15 +91,12 @@ ntumodel <- function(df1, varout = NULL, varout.mo = NULL, runmod = T) {
     tpchldat <- df1
     save(tpchldat, chlsc, cutp.depth, file = "tpchldat.rda")
 
-    sdprior1 <- c(rep(1, times = 5), rep(0.3, times = 16),
-                  rep(1, times = 9))
-
 
     datstan <- list(n = nrow(df1),
                     ndepth = max(df1$dclassnum),depthnum = df1$dclassnum,
                     neco = max(df1$econum), econum = df1$econum,
                     ntu = log(df1$turb.result),
-                    tp = log(df1$ptl.result),
+                    tp = log(df1$tp.sc),
                     chl = df1$chl.sc,
                     depth = log(df1$index.site.depth),
                     nseas = max(df1$seasnum),
@@ -121,22 +122,25 @@ ntumodel <- function(df1, varout = NULL, varout.mo = NULL, runmod = T) {
         }
         parameters {
             real muk;  // exponents on chl and u in models
-            real mud;
-            real<lower = 0> sigd[2];// SD of ecoregion- or depth-specific coef
-            vector[n] etad1;
-            vector[nseas] etad3;
+            real mud[2];
+            real<lower = 0> sigd[3];// SD of ecoregion- or depth-specific coef
+            vector[neco] etad1;
+            vector[n] etad1a;
+            vector[nseas] etad2;
 
             real<lower = 0> sigtp;    // measurement error of tp
-            real am[2];
+
         }
         transformed parameters {
             // dropped depth specific d1 because no sig
             // difference among depths. just using mud[1]
-            vector[n] d1s;
-            vector[nseas] d3;
+            vector[neco] d1;
+            vector[n] d1a;
+            vector[nseas] d2;
 
-            d1s = am[1] + am[2]*depth + sigd[1]*etad1;
-            d3 = mud + sigd[2]*etad3;
+            d1 = mud[1] + sigd[1]*etad1;
+            d1a = d1[econum] + sigd[3]*etad1a;
+            d2 = mud[2] + sigd[2]*etad2;
         }
         model {
             vector[n] tp_mn;
@@ -147,16 +151,17 @@ ntumodel <- function(df1, varout = NULL, varout.mo = NULL, runmod = T) {
             sigd ~ cauchy(0,3);
 
             etad1 ~ normal(0,1);
-            etad3 ~ normal(0,1);
+            etad1a ~ normal(0,1);
+            etad2 ~ normal(0,1);
 
             sigtp ~ normal(0.1, 0.002);
 
-           am[1] ~ normal(a[1], 0.8);
-           am[2] ~ normal(a[2], 0.8);
+//           mud[1] ~ normal(a[1], 0.8);
+//           slp ~ normal(a[2], 0.8);
 
            for (i in 1:n) {
-               tp_mn[i] = exp(d1s[i]) +
-                          exp(d3[seasnum[i]])*chl[i]^muk;
+               tp_mn[i] = exp(d1a[i]) +
+                          exp(d2[seasnum[i]])*chl[i]^muk;
            }
 
             tp ~ student_t(4,log(tp_mn),sigtp);
@@ -169,7 +174,7 @@ ntumodel <- function(df1, varout = NULL, varout.mo = NULL, runmod = T) {
         rstan_options(auto_write = TRUE)
         options(mc.cores = nchains)
         fit <- stan(model_code = modstan,
-                    data = datstan, iter = 1800, chains = nchains,
+                    data = datstan, iter = 2400, chains = nchains,
                     warmup = 600, thin = 3)
         return(fit)
     }
@@ -178,292 +183,79 @@ ntumodel <- function(df1, varout = NULL, varout.mo = NULL, runmod = T) {
     ## post processing
     grey.t <- adjustcolor("grey39", alpha.f = 0.5)
 
-    mud <- mean(varout$mud)
+    mud <- apply(varout$mud, 2, mean)
     muk <- mean(varout$muk)
 
-    d1s <- apply(varout$d1s, 2, mean)
-
-    predout <- exp(d1s) +  exp(mud)*df1$chl.sc^muk
-    plot(log(predout), log(df1$ptl.result))
-    print(sqrt(sum((log(predout) - log(df1$ptl.result))^2)/length(predout)))
-    abline(0,1)
-
-    dev.new()
+    png(width = 6, height = 2.5, pointsize = 6, units = "in", res = 600,
+        file = "nla.mo.comp.png")
+    par(mar = c(4,4,1,1), mgp = c(2.3,1,0), bty = "l", mfrow = c(1,2))
     plot(log(df1$chl), log(df1$ptl.result),
-         xlab = expression(Chl~italic(a)~(mu*g/L)),
+         xlab = expression(Chl~(mu*g/L)),
          ylab = expression(TP~(mu*g/L)), pch= 21, col = "grey",
          bg = "white", axes = F)
-#    points(        log(moi3.all$chl), log(moi3.all$tp - moi3.all$dtp),
-#           pch = "+")
+
     logtick.exp(0.001, 10, c(1,2), c(F,F))
 
-    x <- seq(min(log(df1$chl)), max(log(df1$chl)), length = 40)
-    predout <- matrix(NA, ncol = 3, nrow = length(x))
-
-    ## calculate estimate based on MO data
-    predout.mo <- matrix(NA, ncol = 3, nrow = length(x))
-    load("mn.val.mo.rda")
-
-    nsamp <- length(varout$mud)
-
-    for (i in 1:length(x)) {
-#        y <- varout$mud[,3] - varout$muk[,3]*log(chlsc) +
-#            varout$muk[,3]*x[i]
-        y <-  rnorm(nsamp, mean = varout$mud, sd = varout$sigd[,2])  -
-            varout$muk*log(chlsc) +
-                varout$muk*x[i]
-        mnval <- varout.mo$d2[,4]
-        y2 <- log(mn.val["tp"]) +
-             mnval -
-            varout.mo$k[,3]*log(mn.val["chl"]) +
-                varout.mo$k[,3]*x[i]
-        predout[i,] <- quantile(y, prob = c(0.025, 0.5, 0.975))
-        predout.mo[i,] <- quantile(y2, prob = c(0.025, 0.5, 0.975))
-    }
-    print(predout)
-    polygon(c(x, rev(x)), c(predout[,1], rev(predout[,3])),
-            col = grey.t, border = NA)
-    lines(x, predout[,2])
-    lines(x, predout.mo[,2], lty = "dashed")
-    lines(x, predout.mo[,1], lty = "dotted")
-    lines(x, predout.mo[,3], lty = "dotted")
-    stop()
-
-    muk <- apply(varout$muk, 2, mean)
-    d1 <- apply(varout$d1, 2, mean)
-    d2 <- apply(varout$d2, 2, mean)
-    d3 <- apply(varout$d3, 2, mean)
-    muu <- apply(varout$muu, 2,mean)
-    muumn <- mean(varout$muu_mn)
-    d3raw <- d3 - muk[3]*log(chlsc)
-    d2raw <- d2-muk[2]*muumn
-    mud <- apply(varout$mud, 2, mean)
-
-    mub <- mean(varout$mub)
-    mubraw <- mub - muk[1]*log(chlsc)
-
-    ## PLOT: relationship between Chl and turbidity (Fig 24)
-    png(width = 3, height = 2.5, pointsize = 8, units = "in", res = 600,
-        file = "chlturb.png")
-    par(mar = c(4,4,1,1), mfrow = c(1,1), mgp = c(2.3,1,0))
-    plot(log(df1$chl), log(df1$turb.result), axes = F,
-         xlab = expression(Chl~italic(a)~(mu*g/L)),
-         ylab = "Turbidity (NTU)", pch = 21, col = "grey",
-         bg="white")
-    logtick.exp(0.001, 10, c(1,2), c(F,F))
-    abline(mubraw, muk[1])
-    dev.off()
-
-    b <- apply(varout$b, 2, mean)
-    braw <- b - muk[1]*log(chlsc)
-
-    ## PLOT: predicted values for Pdiss and muu (Fig 25)
-    png(width = 6, height = 2.5, pointsize = 8, units = "in", res = 600,
-        file = "Pdiss.turb.depth.png")
-    par(mar = c(4,4,1,1), mgp = c(2.3, 1, 0), mfrow= c(1,2))
-    plot(cutm, exp(muu), xlab = "Depth (m)", axes = F,
-         ylab = expression(Turb[np]~(NTU)),
-         pch = 21, col = "grey39", bg="white")
-    axis(2)
-    logtick.exp(0.001, 10, c(1), c(F,F))
-
-    plot(cutm, exp(d1), xlab = "Depth (m)", axes = F,
-         ylab = expression(P[diss]~(mu*g/L)),
-         pch = 21, col = "grey39", bg="white")
-    axis(2)
-    logtick.exp(0.001, 10, c(1), c(F,F))
-    dev.off()
-
-    ## load in ntu_np mean values into main data
-    df1$umean <- umean
-
-    ## merge ecoregion and depth specific coefficients into main data
-    dfd <- data.frame(num = 1:length(muu),  muu)
-    names(dfd) <- c("dclassnum",  "muu")
-    print(nrow(df1))
-    df1 <- merge(df1, dfd, by = "dclassnum")
-    print(nrow(df1))
-    dfd3 <- data.frame(num = 1:length(d3), d3, d3raw, d2, d2raw)
-    print(dim(dfd3))
-    names(dfd3) <- c("econum", "d3", "d3raw", "d2", "d2raw")
-    df1 <- merge(df1, dfd3, by = "econum")
-
-    ## save ecoregion coefficients to file for mapping
-    dfd3 <- merge(dfd3, unique.data.frame(df1[, c("econum", "us.l3code")]),
-                  by = "econum")
-    save(dfd3, file= "dfd3.rda")  # output to different script for mapping
-
-        ## compute mean predicted TP
-    df1$predout <- exp(mud[1]) + exp(df1$d2)*exp(df1$umean - muumn)^muk[2] +
-        exp(df1$d3)*df1$chl.sc^muk[3]
-
-
-    png(width = 4, height = 4, pointsize = 10, units = "in", res = 600,
-        file = "pred.v.obs.all.png")
-    par(mar = c(4,4,1,1), mgp = c(2.3,1,0), bty = "l")
-    plot(log(df1$predout), log(df1$ptl.result), xlab = "Predicted TP",
-         ylab = "Observed TP",  pch = 21, col = "grey39",
-         bg = "white", axes = F)
-    logtick.exp(0.001, 10, c(1,2), c(F,F))
-    abline(0,1)
-    dev.off()
-
-    rmsfnc <- function(x,y) {
-        return(sqrt(sum((x-y)^2)/length(x)))
-    }
-    cat("Whole data RMS:",rmsfnc(log(df1$predout), log(df1$ptl.result)), "\n")
-
-    ## print numerical summaries of parameters
-    print("mub")
-    print(exp(quantile(varout$mub - varout$muk[,1]*log(chlsc),
-                   prob = c(0.05, 0.5, 0.95))))
-    print("k distribution")
-    print(apply(varout$muk, 2, quantile, prob = c(0.05, 0.5, 0.95)))
-    mud <- apply(varout$mud, 2, mean)
-
-    print("mud[2]")
-    print(exp(quantile(varout$mud[,2] - varout$muk[,2]*varout$muu_mn,
-                       prob = c(0.05, 0.50, 0.95))))
-    print("mud[3]")
-    print(exp(quantile(varout$mud[,3] - varout$muk[,3]*log(chlsc),
-                       prob = c(0.05, 0.5, 0.95))))
-
-    # PLOT: NTU_np vs TP, Chl vs TP (fig 27)
-#    png(width = 6, height = 2.5, pointsize = 8, units = "in", res = 600,
-#        file = "tpchl.png")
-
-    dev.new()
-    par(mar = c(4,4,1,1), mfrow = c(1,2), mgp = c(2.3,1,0))
-    plot(df1$umean, log(df1$ptl.result), xlab = expression(Turb[np]~(NTU)),
-         ylab = expression(TP~(mu*g/L)), pch = 21, col = "grey",
-         bg="white", axes = F)
-    logtick.exp(0.000001, 10, c(1,2), c(F,F))
-    x <- seq(min(df1$umean), max(df1$umean), length = 40)
-    predout <- matrix(NA, ncol = 3, nrow = length(x))
-    for (i in 1:length(x)) {
-        y <- varout$mud[,2] + varout$muk[,2]*x[i] - varout$muu_mn*varout$muk[,2]
-        predout[i,] <- quantile(y, prob = c(0.05, 0.5, 0.95))
-    }
-    polygon(c(x, rev(x)), c(predout[,1], rev(predout[,3])),
-            col = grey.t, border = NA)
-    lines(x, predout[,2])
-
-    plot(log(df1$chl), log(df1$ptl.result),
-         xlab = expression(Chl~italic(a)~(mu*g/L)),
-         ylab = expression(TP~(mu*g/L)), pch= 21, col = "grey",
-         bg = "white", axes = F)
-    logtick.exp(0.001, 10, c(1,2), c(F,F))
-    x <- seq(min(log(df1$chl)), max(log(df1$chl)), length = 40)
-    predout <- matrix(NA, ncol = 3, nrow = length(x))
-
-    ## calculate estimate based on MO data
-    predout.mo <- matrix(NA, ncol = 3, nrow = length(x))
-    load("mn.val.mo.rda")
-    load("varout.vss.rda")
-    load("varntu.00.rda")
-
-    d3 <- apply(varout$d3, 2, mean)
-#    ip <- which(d3 == min(d3))
-    ip <- 40
-
-    for (i in 1:length(x)) {
-#        y <- varout$mud[,3] - varout$muk[,3]*log(chlsc) +
-#            varout$muk[,3]*x[i]
-        y <- varout$d3[,ip] - varout$muk[,3]*log(chlsc) +
-            varout$muk[,3]*x[i]
-        y2 <- log(mn.val["tp"]) + varntu.00$mud[,2] -
-            varntu.00$k[,3]*log(mn.val["chl"]) +
-                varntu.00$k[,3]*x[i] + log(2)
-        predout[i,] <- quantile(y, prob = c(0.025, 0.5, 0.975))
-        predout.mo[i,] <- quantile(y2, prob = c(0.025, 0.5, 0.975))
-    }
-    polygon(c(x, rev(x)), c(predout[,1], rev(predout[,3])),
-            col = grey.t, border = NA)
-    lines(x, predout[,2])
-    lines(x, predout.mo[,2], lty = "dashed")
-    lines(x, predout.mo[,1], lty = "dotted")
-    lines(x, predout.mo[,3], lty = "dotted")
-    stop()
-
-    dev.off()
-
-    ## Plot criterion derivation figure
-
-    ## find ecoregion index number
-    ieco <- which(levels(df1$us.l3code) == ecosel)
-
-    ## find correct depth class
-    idepth <- 1
-    while(exp(cutp.depth[idepth]) < depthsel & (idepth < length(cutp.depth)))
-        idepth <- idepth + 1
-    print(idepth)
-
-    grey.t <- adjustcolor("grey39", alpha.f = 0.5)
-
-    ## calculate mean parameter values
-    muk <- apply(varout$muk, 2, mean)
-    d3 <- apply(varout$d3, 2, mean)
-    d3 <- d3 - muk[3]*log(chlsc)
-
-    incvec <- df1$econum == ieco
-
-    ## define regularly spaced values along chl gradient
-    ## for computing predictions
     x <- seq(min(log(df1$chl)), max(log(df1$chl)), length = 50)
-    xsc <- x - log(chlsc)
-
-    ## compute predicted ambient and limiting values
     predout <- matrix(NA, ncol = 3, nrow = length(x))
-    predout2 <- matrix(NA, ncol = 3, nrow = length(x))
+
+    ## calculate estimate based on MO data
+    predout.mo <- matrix(NA, ncol = 3, nrow = length(x))
+    load("mn.val.mo.rda")
+
+    nsamp <- nrow(varout$mud)
+
     for (i in 1:length(x)) {
-        y <- varout$d3[,ieco] - varout$muk[,3]*log(chlsc) +
-            varout$muk[,3]*x[i]
-        predout[i,] <- quantile(y, prob = c(0.5*(1-credint),
-                                       0.5, 1- 0.5*(1-credint)))
-        y2 <- exp(varout$mud[,1]) +
-            exp(varout$d2[,ieco])*
-                (exp(varout$muu[, idepth] -
-                         varout$muu_mn))^varout$muk[,2] +
-                             exp(varout$d3[, ieco])*exp(xsc[i])^varout$muk[,3]
-        predout2[i,] <- quantile(log(y2), prob = c(0.5*(1-credint),
-                                              0.5, 1-0.5*(1-credint)))
+#        y <- varout$mud[,3] - varout$muk[,3]*log(chlsc) +
+#            varout$muk[,3]*x[i]
+        y <-  rnorm(nsamp, mean = varout$mud[,2], sd = varout$sigd[,2])  +
+            varout$muk*(x[i] - log(chlsc)) + log(tpsc)
+        y2 <- varout.mo$d1[,4] +
+            varout.mo$k[,2]*(x[i] - log(mn.val["chl"])) +
+                log(mn.val["tp"])
+
+        predout[i,] <- quantile(y, prob = c(0.05, 0.5, 0.95))
+        predout.mo[i,] <- quantile(y2, prob = c(0.05, 0.5, 0.95))
     }
 
-    dev.new()
-    par(mgp = c(2.3,1,0), bty = "l", mar = c(4,4,1,1))
-    plot(log(df1$chl), log(df1$ptl.result), type = "p",
-         axes = F, xlab = expression(Chl~italic(a)~(mu*g/L)),
-         ylab = expression(TP~(mu*g/L)), col = "grey80",
-         pch = 21, bg = "white")
-    logtick.exp(0.001, 10, c(1,2), c(F,F))
-    ## highlight points in the selected ecoregion
-    points(log(df1$chl)[incvec], log(df1$ptl.result)[incvec],
-           pch = 21, col = "black", bg = "grey")
-
-    cat("Median depth:", median(df1$index.site.depth[incvec]), "\n")
-
     polygon(c(x, rev(x)), c(predout[,1], rev(predout[,3])),
-            col  = grey.t, border = NA)
-    lines(x, predout[,2])
-    polygon(c(x, rev(x)), c(predout2[,1], rev(predout2[,3])),
-            col  = grey.t, border = NA)
-    lines(x, predout2[,2], lty = "dashed")
+            col = grey.t, border = NA)
+    lines(x, predout.mo[,1])
+    lines(x, predout.mo[,3])
 
-    crit1 <- approx(x, predout[,1], log(chltarg))$y
-    crit2 <- approx(x, predout2[,1], log(chltarg))$y
+    d1.mo <- apply(varout.mo.n$d1, 2, mean)
+    k.mo <- apply(varout.mo.n$k, 2, mean)
+    load("mn.val.tnmo.rda")
+    load("tnsc.rda")
 
-    ylo <- min(log(df1$ptl.result)) - 0.04*diff(range(log(df1$ptl.result)))
-    xlo <- min(log(df1$chl)) - 0.04*diff(range(log(df1$chl)))
-    segments(xlo, crit1,
-             log(chltarg), crit1,  col = "red")
-    segments(xlo, crit2,
-             log(chltarg), crit2,  col = "red")
-    segments(log(chltarg), crit2,
-             log(chltarg), ylo, col = "red")
-    segments(xlo, crit1,
-             xlo, crit2, col = "red", lwd = 3)
+    predout1 <- matrix(NA, ncol = 3, nrow = length(x))
+    predout2 <- matrix(NA, ncol = 3, nrow = length(x))
+    ns1 <- nrow(varout.mo.n$mud)
 
-    cat("TP criterion:", round(exp(crit2)), "\n")
+    for (i in 1:length(x)) {
+        y <- rnorm(ns1, mean = varout.n$mud[,1], sd =varout.n$sigd[,1]) +
+            varout.n$muk*(x[i]-log(chlsc)) + log(tnsc)
+        predout1[i,] <- quantile(y, prob = c(0.05, 0.5, 0.95))
+        y2 <- varout.mo.n$d1[,4] + varout.mo.n$k[,1]*(x[i] - log(mn.val["chl"])) +
+            log(mn.val["tn"]) + log(1000)
+        predout2[i,] <- quantile(y2, prob = c(0.05, 0.5, 0.95))
+    }
+
+
+    plot(log(df1$chl.sc*chlsc), log(df1$ntl.result - df1$no3no2.result),
+         axes = F, xlab = expression(Chl~(mu*g/L)),
+         ylab = expression(TN~(mu*g/L)),pch = 21, col = "grey",
+         bg = "white")
+    logtick.exp(0.001, 10, c(1,2), c(F,F))
+    polygon(c(x, rev(x)), c(predout1[,1], rev(predout1[,3])),
+            col = grey.t, border= NA)
+
+    lines(x, predout2[,1])
+    lines(x, predout2[,3])
+    dev.off()
+
+    return()
+
 
 
 }
@@ -472,8 +264,16 @@ ntumodel <- function(df1, varout = NULL, varout.mo = NULL, runmod = T) {
 ##  run post processing.
 #fitout <- ntumodel(dat.merge.all, runmod = T)
 ## post processing
-#varout.nou <- extract(fitout, pars = c("muk", "mub", "b",  "d2","d1s",
-#                              "muu", "muu_mn", "u", "mud", "sigd"))
-#umean <- apply(varout.nou$u, 2, mean)
+varout.p.limnat <- extract(fitout, pars = c("muk", "mud", "sigd", "d1", "d2"))
 
-ntumodel(dat.merge.all, varout = varout.nat.lim, varout.mo = varout.mo.d1L.d2T, runmod = F)
+ntumodel(dat.merge.all, varout = varout.p.limnat,
+         varout.mo = varout.mo.d1T.d2L,
+         varout.n = varout.n.limnat,
+         varout.mo.n = varout.mon.d1T.d2Lv,
+         runmod = F)
+
+
+
+
+
+

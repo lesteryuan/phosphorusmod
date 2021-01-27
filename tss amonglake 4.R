@@ -95,6 +95,7 @@ tss.explore <- function(df1, matout = NULL,varout = NULL, varout.n = NULL,
     df1$srp <- df1$srp/mn.val["tp"]
     df1$vss <- df1$vss/mn.val["tss"]
     df1$nvss <- df1$nvss/mn.val["tss"]
+    df1$dtn <- df1$dtn/mn.val["tn"]
 
     ## drop one big outlier
     incvec <- log(df1$chl) < -2 & log(df1$tp - df1$dtp) < -3
@@ -288,6 +289,8 @@ tss.explore <- function(df1, matout = NULL,varout = NULL, varout.n = NULL,
         }
     }
 
+    grey.t1 <- adjustcolor("grey20", alpha = 0.5)
+    grey.t2 <- adjustcolor("grey70", alpha = 0.5)
 
     dftemp <- unique.data.frame(df1[, c("lakenum", "flush.rate")])
     dftemp <- dftemp[order(dftemp$lakenum),]
@@ -367,7 +370,57 @@ tss.explore <- function(df1, matout = NULL,varout = NULL, varout.n = NULL,
 
 
     dev.off()
-    print(predout2[,2]/predout[,2])
+    cat("N:P:", predout2[,2]/predout[,2], "\n")
+
+    xnew <- seq(log(0.1), log(300), length = 50)
+    predout <- matrix(NA, ncol = 3, nrow = length(xnew))
+    predouta <- matrix(NA, ncol = 3, nrow = length(xnew))
+    predout2 <- matrix(NA, ncol = 3, nrow = length(xnew))
+    predout2a <- matrix(NA, ncol = 3, nrow = length(xnew))
+    nsamp <- nrow(varout$mud)
+    nsamp2 <- nrow(varout.n$mud)
+    for (i in 1:length(xnew)) {
+        y <- rnorm(nsamp, mean = varout$mud[,1], sd = varout$sigd[,1]) +
+            varout$k[,2]*(xnew[i]-log(mn.val["chl"])) + log(mn.val["tp"])
+        predout[i,] <- quantile(y, prob = c(0.05, 0.5, 0.95))
+        y <- varout$mud[,1]+
+            varout$k[,2]*(xnew[i]-log(mn.val["chl"])) + log(mn.val["tp"])
+        predouta[i,] <- quantile(y, prob = c(0.05, 0.5, 0.95))
+        y2 <- rnorm(nsamp2, mean = varout.n$mud[,1], sd = varout.n$sigd[,1]) +
+            varout.n$k[,1]*(xnew[i] - log(mn.val["chl"])) + log(mn.val["tn"])
+        predout2[i,] <- quantile(y2, prob = c(0.05, 0.5, 0.95))
+        y2 <- varout.n$mud[,1] +
+            varout.n$k[,1]*(xnew[i] - log(mn.val["chl"])) + log(mn.val["tn"])
+        predout2a[i,] <- quantile(y2, prob = c(0.05, 0.5, 0.95))
+    }
+    png(width = 6, height = 2.5, pointsize = 6, units = "in",
+        res = 600, file = "molimits.png")
+    par(mar = c(4,4,1,1), mfrow = c(1,2), mgp = c(2.3,1,0))
+    plot(log(df1$chl) + log(mn.val["chl"]),
+         log(df1$tp - df1$dtp) + log(mn.val["tp"]),
+         pch = 21, col = "grey39", bg = "white", axes = F,
+         xlab = expression(Chl~(mu*g/L)),
+         ylab = expression(P[part]~(mu*g/L)))
+    logtick.exp(0.001, 10, c(1,2), c(F,F))
+    lines(xnew, predout[,2])
+    polygon(c(xnew, rev(xnew)), c(predout[,1], rev(predout[,3])), col = grey.t2,
+            border = NA)
+    polygon(c(xnew, rev(xnew)), c(predouta[,1], rev(predouta[,3])), col = grey.t1,
+            border = NA)
+
+    plot(log(df1$chl) + log(mn.val["chl"]),
+         log(df1$tn - df1$dtn) + log(mn.val["tn"]),
+         pch = 21, col = "grey39", bg = "white", axes = F,
+         xlab = expression(Chl~(mu*g/L)),
+         ylab = expression(N[part]~(mu*g/L)))
+    logtick.exp(0.001, 10, c(1,2), c(F,F))
+    lines(xnew, predout2[,2])
+    polygon(c(xnew, rev(xnew)), c(predout2[,1], rev(predout2[,3])),col = grey.t2,
+            border = NA)
+    polygon(c(xnew, rev(xnew)), c(predout2a[,1], rev(predout2a[,3])), col = grey.t1,
+            border = NA)
+    dev.off()
+
     stop()
     mub <- mean(varout$mub)
     u <- apply(varout$u, 2, mean)

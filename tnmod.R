@@ -71,7 +71,6 @@ tnmod <- function(df1, matout = NULL,varout = NULL,
 
             real mub;
             real<lower = 0> sigtss;
-            vector[n] dtn_mn;
 
         }
         transformed parameters {
@@ -90,7 +89,7 @@ tnmod <- function(df1, matout = NULL,varout = NULL,
             for (i in 1:n) {
                 tss_mn[i] = exp(mub)*chl[i]^k[3] + exp(u[i]);
 
-                tn_mn[i] = dtn_mn[i] + exp(d1[seasnum[i]])*chl[i]^k[1] +
+                tn_mn[i] = dtn[i] + exp(d1[seasnum[i]])*chl[i]^k[1] +
                         exp(d2[lakenum[i]])*exp(u[i])^k[2];
             }
         }
@@ -111,7 +110,6 @@ tnmod <- function(df1, matout = NULL,varout = NULL,
 
             sigtn ~ cauchy(0,3);
 
-            dtn ~ normal(dtn_mn, 0.10);
             tss ~ student_t(4,log(tss_mn), sigtss);
             tn ~ student_t(4,log(tn_mn), sigtn);
         }
@@ -138,7 +136,7 @@ tnmod <- function(df1, matout = NULL,varout = NULL,
 
         return(tnpred)
     }
-    extractvars <- c("mud", "k", "u", "mub", "d1", "d2")
+    extractvars <- c("mud", "k", "u", "mub", "d1", "d2", "sigd")
 
     nchains <- 3
     if (runmod) {
@@ -291,7 +289,7 @@ tnmod <- function(df1, matout = NULL,varout = NULL,
     return()
 
 }
-varout.mon.test <- tnmod(moi3.all, runmod = T, xvalid = F)
+varout.mon.d1T.d2Lv <- tnmod(moi3.all, runmod = T, xvalid = F)
 #matout.mon.d1T.d2Tv <- tnmod(moi3.all, runmod = T, xvalid = T)
 #tnmod(moi3.all, matout = matout.mon.d1T.d2Tv,
 #      varout = varout.mon.d1T.d2Tv, runmod = F, xvalid = F)
