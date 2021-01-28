@@ -49,41 +49,17 @@ tss.explore <- function(df1, matout = NULL,varout = NULL, varout.n = NULL,
     df1$lake <- factor(df1$lake)
 
     df1$lake <- factor(df1$lake)
-    print(table(df1$lake))
     df1$lakenum <- as.numeric(df1$lake)
-
     df1$seasnum <- as.numeric(df1$yday.q)
 
-    ## model for dtp to chl relationship
-    incvec <- df1$dtp > df1$srp
-    dftemp <- df1[incvec,]
-    pmean <- tapply(log(dftemp$dtp), dftemp$lake, mean)
-    cmean <- tapply(log(dftemp$chl), dftemp$lake, mean)
-    dmean <- tapply(log(dftemp$mean.depth), dftemp$lake, mean)
-    mod1 <- lm(pmean ~ cmean)
-    mod2 <- lm(pmean ~ dmean)
-    print(summary(mod2))
-#    plot(dmean, pmean)
-#    abline(mod2)
+    ## drop one big outlier
+    incvec <- log(df1$tp - df1$dtp) < 0
+    df1 <- df1[!incvec, ]
 
-    predout <- predict(mod2, se.fit = T)
-    print(predout)
-
-    load("cutp.depth.rda")
-#    abline(v = cutp.depth)
-    cutm <- 0.5*(cutp.depth[-1] + cutp.depth[-length(cutp.depth)])
-    cc <- coef(mod2)
-    ## create shape of priors for dtp with informative
-    ## priors in the range of MO I3 lakes
-    prior1 <- cc[1] + cc[2]*cutm
-    imin <- which(cutm < min(dmean))
-#    prior1[imin] <- prior1[max(imin)+1]
-    imax <- which(cutm > max(dmean))
-#    prior1[imax] <- prior1[min(imax)-1]
-#    plot(cutm, prior1)
-#    points(dmean, pmean, pch = 16)
-#    save(prior1, file = "prior1.rda")
-
+    print(summary(df1$chl))
+    print(summary(df1$tp))
+    print(summary(df1$tn))
+    print(nrow(df1))
 
     varlist<- c("tss", "chl", "tp", "ntu", "tn")
     mn.val <- apply(df1[, varlist],2,function(x) exp(mean(log(x))))
@@ -97,10 +73,6 @@ tss.explore <- function(df1, matout = NULL,varout = NULL, varout.n = NULL,
     df1$nvss <- df1$nvss/mn.val["tss"]
     df1$dtn <- df1$dtn/mn.val["tn"]
 
-    ## drop one big outlier
-    incvec <- log(df1$chl) < -2 & log(df1$tp - df1$dtp) < -3
-#    points(log(df1$chl)[incvec], log(df1$tp - df1$dtp)[incvec], pch = 16)
-    df1 <- df1[!incvec, ]
 
        modstan <- '
         data {

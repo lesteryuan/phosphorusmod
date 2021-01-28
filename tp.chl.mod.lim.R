@@ -36,12 +36,18 @@ ntumodel <- function(df1, varout = NULL, varout.mo = NULL,
     df1 <- df1[incvec,]
     cat("N dropped for detection limit:", norig - nrow(df1), "\n")
 
-
     ## drop samples with chl > 100
-    incvec <- df1$chl < 100
+    incvec <- df1$chl < 195
     df1 <- df1[incvec,]
-    incvec <- df1$chl > 1
+    incvec <- df1$chl > 0.6
     df1 <- df1[incvec,]
+
+    print(summary(df1$ptl.result))
+    print(summary(df1$chl))
+    print(summary(df1$ntl.result))
+    print(nrow(df1))
+    print(length(unique(df1$site.id)))
+    stop()
 
     ## scale chl and tp
     chlmn <- mean(log(df1$chl))
@@ -264,7 +270,7 @@ ntumodel <- function(df1, varout = NULL, varout.mo = NULL,
 ##  run post processing.
 #fitout <- ntumodel(dat.merge.all, runmod = T)
 ## post processing
-varout.p.limnat <- extract(fitout, pars = c("muk", "mud", "sigd", "d1", "d2"))
+#varout.p.limnat <- extract(fitout, pars = c("muk", "mud", "sigd", "d1", "d2"))
 
 ntumodel(dat.merge.all, varout = varout.p.limnat,
          varout.mo = varout.mo.d1T.d2L,
