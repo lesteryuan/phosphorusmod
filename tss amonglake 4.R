@@ -99,7 +99,7 @@ tss.explore <- function(df1, matout = NULL,varout = NULL, varout.n = NULL,
             vector[2] mud;
             real<lower = 0> sigd[2];
             vector[nseas] etad1;
-            vector[nseas] etad2;
+            vector[nlake] etad2;
 
             real<lower = 0> sigtss;
             real<lower = 0> sigtp;
@@ -110,7 +110,7 @@ tss.explore <- function(df1, matout = NULL,varout = NULL, varout.n = NULL,
             vector[n] tp_mn;
             vector[n] tss_mn;
             vector[nseas] d1;
-            vector[nseas] d2;
+            vector[nlake] d2;
 
             u = muu + etau*sigu;
 
@@ -124,7 +124,7 @@ tss.explore <- function(df1, matout = NULL,varout = NULL, varout.n = NULL,
                tss_mn[i] = exp(mub)*chl[i]^k[1] + exp(u[i]);
 
                tp_mn[i] = exp(d1[seasnum[i]])*chl[i]^k[2] + dtp[i] +
-                         exp(d2[seasnum[i]])*exp(u[i])^k[3];
+                         exp(d2[lakenum[i]])*exp(u[i])^k[3];
 
             }
         }
@@ -174,7 +174,7 @@ tss.explore <- function(df1, matout = NULL,varout = NULL, varout.n = NULL,
         tppred <- rep(NA, times = nrow(df))
         for (i in 1:nrow(df)) {
             tppred[i] <- exp(d1[df$seasnum[i]])*df$chl[i]^k[2] + df$dtp[i] +
-                         exp(d2[df$seasnum[i]])*u[i]^k[3]
+                         exp(d2[df$lakenum[i]])*u[i]^k[3]
 
         }
 
@@ -201,8 +201,8 @@ tss.explore <- function(df1, matout = NULL,varout = NULL, varout.n = NULL,
             print(str(datstan))
 
             fit <- stan(model_code = modstan,
-                        data = datstan, iter = 1000, chains = nchains,
-                        warmup = 500, thin= 2,
+                        data = datstan, iter = 1800, chains = nchains,
+                        warmup = 600, thin= 2,
                         control = list(adapt_delta = 0.98, max_treedepth = 14))
 
 
@@ -312,16 +312,20 @@ tss.explore <- function(df1, matout = NULL,varout = NULL, varout.n = NULL,
     chl0 <- 10
     predout <- matrix(NA, ncol = 3, nrow = 6)
     predout2 <- matrix(NA, ncol = 3, nrow = 6)
+    predout3 <- matrix(NA, ncol = 3, nrow = 6)
     for (i in 1:6) {
         y <- mn.val["tp"]*exp(varout$d1[,i])/(mn.val["chl"]^varout$k[,2])*chl0^(varout$k[,2]-1)
         y2 <- 1000*mn.val["tn"]*exp(varout.n$d1[,i])/(mn.val["chl"]^varout.n$k[,1])*chl0^(varout.n$k[,1]-1)
+
+        y3 <- y2/y
         predout[i,] <- quantile(y, prob = c(0.05, 0.5, 0.95))
         predout2[i,] <- quantile(y2, prob = c(0.05, 0.5, 0.95))
+        predout3[i,] <- quantile(y3, prob = c(0.05, 0.5, 0.95))
     }
-    png(width = 6, height = 2.5, pointsize = 6, units ="in", res = 600,
+    png(width = 6, height = 2, pointsize = 6, units ="in", res = 600,
         file = "timechlp.png")
 
-    par(mar = c(4,4,1,1), mgp = c(2.3,1,0), bty = "l", mfrow = c(1,2))
+    par(mar = c(4,4,1,1), mgp = c(2.3,1,0), bty = "l", mfrow = c(1,3))
     plot(1:6, predout[,2], ylim = range(predout), type = "n", xlab = "",
          ylab = expression(P/Chl~(mu*g/mu*g)), axes= F)
     axis(2)
@@ -339,6 +343,15 @@ tss.explore <- function(df1, matout = NULL,varout = NULL, varout.n = NULL,
     box(bty = "l")
     segments(1:6, predout2[,1], 1:6, predout2[,3], col = "grey39")
     points(1:6, predout2[,2], pch = 21, col = "grey39", bg = "white")
+
+    plot(1:6, predout3[,2], ylim = range(predout3), type = "n", xlab = "",
+         ylab = expression(N/P), axes= F)
+    axis(2)
+    axis(1, at = 1:6, lab = c("Jan/Feb", "Mar/Apr", "May/Jun",
+                          "Jul/Aug", "Sep/Oct", "Nov/Dec"))
+    box(bty = "l")
+    segments(1:6, predout3[,1], 1:6, predout3[,3], col = "grey39")
+    points(1:6, predout3[,2], pch = 21, col = "grey39", bg = "white")
 
 
     dev.off()
@@ -411,7 +424,7 @@ tss.explore <- function(df1, matout = NULL,varout = NULL, varout.n = NULL,
 
 }
 
-#varout.mo.d1T.d2T <- tss.explore(moi3.all, runmod = T, xvalid= F)
+#varout.mo.d1T.d2L <- tss.explore(moi3.all, runmod = T, xvalid= F)
 #matout.mo.d1T.d2T <-  tss.explore(moi3.all, runmod = T, xvalid= T)
 
 tss.explore(moi3.all, matout = matout.mo.d1T.d2L, varout = varout.mo.d1T.d2L,
