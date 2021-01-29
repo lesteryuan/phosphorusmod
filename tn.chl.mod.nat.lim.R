@@ -45,9 +45,9 @@ tn.model <- function(df1, varout = NULL, varout.mo = NULL, runmod = F) {
     df1$econum <- as.numeric(df1$us.l3code)
 
     ## drop samples with chl > 100
-    incvec <- df1$chl < 100
+    incvec <- df1$chl < 195
     df1 <- df1[incvec,]
-    incvec <- df1$chl > 1
+    incvec <- df1$chl > 0.6
     df1 <- df1[incvec,]
 
     ## center chl and doc
@@ -109,7 +109,7 @@ tn.model <- function(df1, varout = NULL, varout.mo = NULL, runmod = F) {
             vector[neco] etad2;
 
             real<lower = 0> sigtn;  // measurement error of tn
-            real muu;
+            real muu[2];
             vector[n] etau;
             real<lower = 0> sigu;
 
@@ -120,7 +120,7 @@ tn.model <- function(df1, varout = NULL, varout.mo = NULL, runmod = F) {
             vector[n] u;
             d1 = mud[1] + sigd[1]*etad1;
             d2 = mud[2] + sigd[2]*etad2;
-            u = muu + etau*sigu;
+            u = muu[1] + muu[2]*log(chl) + etau*sigu;
         }
         model {
             vector[n] tnmean;
@@ -132,7 +132,8 @@ tn.model <- function(df1, varout = NULL, varout.mo = NULL, runmod = F) {
             etad1 ~ normal(0,1);
             etad2 ~ normal(0,1);
 
-            muu ~ normal(0,3);
+            muu[1] ~ normal(0,3);
+            muu[2] ~ normal(0.14, 0.02);
             etau ~ normal(0,1);
             sigu ~ cauchy(0,3);
 
@@ -153,15 +154,18 @@ tn.model <- function(df1, varout = NULL, varout.mo = NULL, runmod = F) {
         return(fit)
     }
 
+    mud<- apply(varout$mud, 2, mean)
+    d2 <- apply(varout$d2, 2, mean)
+    dev.new()
 
+    incvec <- moi3.all$lake != 45 & moi3.all$lake != 133
+    plot(log(moi3.all$doc[incvec]), log(moi3.all$don)[incvec])
+
+    stop()
+    abline(d2[40] - log(docsc)+log(tnsc),1)
 
     grey.t <- adjustcolor("grey39", alpha.f = 0.5)
 
-    mud<- apply(varout$mud, 2, mean)
-
-    plot(log(df1$doc.sc), log(df1$tn.sc - df1$nox.sc))
-    abline(mud[2], 1)
-    stop()
     muk <- mean(varout$muk)
 
     d1.mo <- apply(varout.mo$d1, 2, mean)
@@ -384,6 +388,7 @@ tn.model <- function(df1, varout = NULL, varout.mo = NULL, runmod = F) {
 ## save extracted variables to varout to post-process
 #fitout <- tn.model(dat.merge.all, runmod = T)
 
-#varout.n.limnat <- extract(fitout, pars = c("muk", "mud", "d1", "sigd", "u"))
+varout.n.limnat <- extract(fitout, pars = c("muk", "mud", "d1", "d2", "sigd", "u"))
+
 tn.model(dat.merge.all, varout = varout.n.limnat, varout.mo = varout.mon.d1T.d2Lv,
          runmod = F)

@@ -48,7 +48,6 @@ ntumodel <- function(df1, varout = NULL, varout.mo = NULL,
     print(nrow(df1))
     print(length(unique(df1$site.id)))
 
-
     ## scale chl and tp
     chlmn <- mean(log(df1$chl))
     tpsc <- exp(mean(log(df1$ptl.result)))
@@ -220,14 +219,14 @@ ntumodel <- function(df1, varout = NULL, varout.mo = NULL,
             varout.mo$k[,2]*(x[i] - log(mn.val["chl"])) +
                 log(mn.val["tp"])
 
-        predout[i,] <- quantile(y, prob = c(0.05, 0.5, 0.95))
-        predout.mo[i,] <- quantile(y2, prob = c(0.05, 0.5, 0.95))
+        predout[i,] <- quantile(y, prob = c(0.025, 0.5, 0.975))
+        predout.mo[i,] <- quantile(y2, prob = c(0.025, 0.5, 0.975))
     }
 
-    polygon(c(x, rev(x)), c(predout[,1], rev(predout[,3])),
+    polygon(c(x, rev(x)), c(predout.mo[,1], rev(predout.mo[,3])),
             col = grey.t, border = NA)
-    lines(x, predout.mo[,1])
-    lines(x, predout.mo[,3])
+    lines(x, predout[,1])
+    lines(x, predout[,3])
 
     d1.mo <- apply(varout.mo.n$d1, 2, mean)
     k.mo <- apply(varout.mo.n$k, 2, mean)
@@ -241,23 +240,23 @@ ntumodel <- function(df1, varout = NULL, varout.mo = NULL,
     for (i in 1:length(x)) {
         y <- rnorm(ns1, mean = varout.n$mud[,1], sd =varout.n$sigd[,1]) +
             varout.n$muk*(x[i]-log(chlsc)) + log(tnsc)
-        predout1[i,] <- quantile(y, prob = c(0.05, 0.5, 0.95))
+        predout1[i,] <- quantile(y, prob = c(0.025, 0.5, 0.975))
         y2 <- varout.mo.n$d1[,4] + varout.mo.n$k[,1]*(x[i] - log(mn.val["chl"])) +
             log(mn.val["tn"]) + log(1000)
-        predout2[i,] <- quantile(y2, prob = c(0.05, 0.5, 0.95))
+        predout2[i,] <- quantile(y2, prob = c(0.025, 0.5, 0.975))
     }
 
 
     plot(log(df1$chl.sc*chlsc), log(df1$ntl.result - df1$no3no2.result),
          axes = F, xlab = expression(Chl~(mu*g/L)),
-         ylab = expression(TN~(mu*g/L)),pch = 21, col = "grey",
+         ylab = expression(TN - DIN~(mu*g/L)),pch = 21, col = "grey",
          bg = "white")
     logtick.exp(0.001, 10, c(1,2), c(F,F))
-    polygon(c(x, rev(x)), c(predout1[,1], rev(predout1[,3])),
+    polygon(c(x, rev(x)), c(predout2[,1], rev(predout2[,3])),
             col = grey.t, border= NA)
 
-    lines(x, predout2[,1])
-    lines(x, predout2[,3])
+    lines(x, predout1[,1])
+    lines(x, predout1[,3])
     dev.off()
 
     return()
@@ -268,9 +267,9 @@ ntumodel <- function(df1, varout = NULL, varout.mo = NULL,
 
 ## runmod variable set to T to run simulation and set to F to
 ##  run post processing.
-#fitout <- ntumodel(dat.merge.all, runmod = T)
+##fitout <- ntumodel(dat.merge.all, runmod = T)
 ## post processing
-#varout.p.limnat <- extract(fitout, pars = c("muk", "mud", "sigd", "d1", "d2"))
+##varout.p.limnat <- extract(fitout, pars = c("muk", "mud", "sigd", "d1", "d2"))
 
 ntumodel(dat.merge.all, varout = varout.p.limnat,
          varout.mo = varout.mo.d1T.d2L,

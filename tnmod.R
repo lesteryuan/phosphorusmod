@@ -217,6 +217,12 @@ tnmod <- function(df1, matout = NULL,varout = NULL,
     mub <- mean(varout$mub)
     u <- apply(varout$u, 2, mean)
 
+    dev.new()
+    plot(log(df1$chl), u)
+    mod <- lm(u ~ log(df1$chl))
+    print(summary(mod))
+    stop()
+
     d1 <- apply(varout$d1, 2, quantile, prob = c(0.05, 0.5, 0.95))
     d2 <- apply(varout$d2, 2, quantile, prob = c(0.05, 0.5, 0.95))
 
@@ -289,7 +295,7 @@ tnmod <- function(df1, matout = NULL,varout = NULL,
     return()
 
 }
-varout.mon.d1T.d2Lv <- tnmod(moi3.all, runmod = T, xvalid = F)
+#varout.mon.d1T.d2Lv <- tnmod(moi3.all, runmod = T, xvalid = F)
 #matout.mon.d1T.d2Tv <- tnmod(moi3.all, runmod = T, xvalid = T)
-#tnmod(moi3.all, matout = matout.mon.d1T.d2Tv,
-#      varout = varout.mon.d1T.d2Tv, runmod = F, xvalid = F)
+tnmod(moi3.all, matout = matout.mon.d1T.d2Lv,
+      varout = varout.mon.d1T.d2Lv, runmod = F, xvalid = F)
