@@ -47,7 +47,7 @@ ntumodel <- function(df1, varout = NULL, varout.mo = NULL,
     print(summary(df1$ntl.result))
     print(nrow(df1))
     print(length(unique(df1$site.id)))
-    stop()
+
 
     ## scale chl and tp
     chlmn <- mean(log(df1$chl))
@@ -96,7 +96,7 @@ ntumodel <- function(df1, varout = NULL, varout.mo = NULL,
     ## save data out to disk
     tpchldat <- df1
     save(tpchldat, chlsc, cutp.depth, file = "tpchldat.rda")
-
+    stop()
 
     datstan <- list(n = nrow(df1),
                     ndepth = max(df1$dclassnum),depthnum = df1$dclassnum,

@@ -158,6 +158,10 @@ tn.model <- function(df1, varout = NULL, varout.mo = NULL, runmod = F) {
     grey.t <- adjustcolor("grey39", alpha.f = 0.5)
 
     mud<- apply(varout$mud, 2, mean)
+
+    plot(log(df1$doc.sc), log(df1$tn.sc - df1$nox.sc))
+    abline(mud[2], 1)
+    stop()
     muk <- mean(varout$muk)
 
     d1.mo <- apply(varout.mo$d1, 2, mean)
@@ -380,6 +384,6 @@ tn.model <- function(df1, varout = NULL, varout.mo = NULL, runmod = F) {
 ## save extracted variables to varout to post-process
 #fitout <- tn.model(dat.merge.all, runmod = T)
 
-varout.n.limnat <- extract(fitout, pars = c("muk", "mud", "d1", "sigd", "u"))
+#varout.n.limnat <- extract(fitout, pars = c("muk", "mud", "d1", "sigd", "u"))
 tn.model(dat.merge.all, varout = varout.n.limnat, varout.mo = varout.mon.d1T.d2Lv,
          runmod = F)
