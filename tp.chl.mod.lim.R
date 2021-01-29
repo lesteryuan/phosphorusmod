@@ -249,7 +249,7 @@ ntumodel <- function(df1, varout = NULL, varout.mo = NULL,
 
     plot(log(df1$chl.sc*chlsc), log(df1$ntl.result - df1$no3no2.result),
          axes = F, xlab = expression(Chl~(mu*g/L)),
-         ylab = expression(TN - DIN~(mu*g/L)),pch = 21, col = "grey",
+         ylab = expression(TN - NO[x]~(mu*g/L)),pch = 21, col = "grey",
          bg = "white")
     logtick.exp(0.001, 10, c(1,2), c(F,F))
     polygon(c(x, rev(x)), c(predout2[,1], rev(predout2[,3])),
