@@ -45,9 +45,9 @@ tn.model <- function(df1, varout = NULL, varout.mo = NULL, runmod = F) {
     df1$econum <- as.numeric(df1$us.l3code)
 
     ## drop samples with chl > 100
-    incvec <- df1$chl < 195
+    incvec <- df1$chl < 108
     df1 <- df1[incvec,]
-    incvec <- df1$chl > 0.6
+    incvec <- df1$chl > 1
     df1 <- df1[incvec,]
 
     ## center chl and doc
@@ -76,10 +76,11 @@ tn.model <- function(df1, varout = NULL, varout.mo = NULL, runmod = F) {
                         "index.lon.dd", "econum", "us.l3code")]
     save(tnchldat, docsc,tnsc, file = "tnchldat.rda")
 
+
     datstan <- list(n = nrow(df1),
                     neco = max(df1$econum),econum = df1$econum,
-                    tn = log(df1$tn.sc),
-                    nox = df1$nox.sc,
+                    tn = log(df1$tn.sc - df1$nox.sc),
+                    nox = log(df1$nox.sc),
                     doc = df1$doc.sc,
                     chl = df1$chl.sc,
                     nseas = max(df1$seasnum),
@@ -104,12 +105,13 @@ tn.model <- function(df1, varout = NULL, varout.mo = NULL, runmod = F) {
         parameters {
             real muk;                // mean value of exponent on chl
             real mud[2];              // mean value of model coefficients
-            real<lower = 0> sigd[2]; // SD of model coefficients among ecoregions
+            real<lower = 0> sigd[3]; // SD of model coefficients among ecoregions
             vector[nseas] etad1;
             vector[neco] etad2;
+            vector[n] etad2a;
 
             real<lower = 0> sigtn;  // measurement error of tn
-            real muu[2];
+            real muu;
             vector[n] etau;
             real<lower = 0> sigu;
 
@@ -117,31 +119,34 @@ tn.model <- function(df1, varout = NULL, varout.mo = NULL, runmod = F) {
         transformed parameters {
             vector[nseas] d1;
             vector[neco] d2;
+            vector[n] d2a;
             vector[n] u;
             d1 = mud[1] + sigd[1]*etad1;
             d2 = mud[2] + sigd[2]*etad2;
-            u = muu[1] + muu[2]*log(chl) + etau*sigu;
+            d2a = d2[econum] + sigd[3]*etad2a;
+            u = muu + etau*sigu;
         }
         model {
             vector[n] tnmean;
             muk ~ normal(1,1);    // small amount of information for k
-            mud[1] ~ normal(0,4);
-            mud[2] ~ normal(0,4);
+            mud ~ normal(0,4);
             sigd ~ cauchy(0,4);
 
             etad1 ~ normal(0,1);
             etad2 ~ normal(0,1);
+            etad2a ~ normal(0,1);
 
-            muu[1] ~ normal(0,3);
-            muu[2] ~ normal(0.14, 0.02);
+            muu ~ normal(0,3);
             etau ~ normal(0,1);
             sigu ~ cauchy(0,3);
 
             sigtn ~ normal(0.1, 0.002);
            // Eqn 34
-           for (i in 1:n) tnmean[i] = nox[i] +
+
+           for (i in 1:n) tnmean[i] =
                                  exp(d1[seasnum[i]])*chl[i]^muk +
-                                 exp(d2[econum[i]])*doc[i] + exp(u[i]);
+                                 exp(d2a[i])*doc[i] + exp(u[i]);
+
             tn ~ student_t(4,log(tnmean), sigtn);
         }
     '
@@ -156,23 +161,31 @@ tn.model <- function(df1, varout = NULL, varout.mo = NULL, runmod = F) {
 
     mud<- apply(varout$mud, 2, mean)
     d2 <- apply(varout$d2, 2, mean)
+    d2a <- apply(varout$d2a, 2, mean)
+    u <- apply(varout$u, 2, mean)
+    muk <- mean(varout$muk)
+    d1 <- apply(varout$d1, 2, mean)
     dev.new()
+    par(mar = c(4,4,1,1), mfrow = c(1,2))
+    predout <- df1$nox.sc + exp(d1[df1$seasnum])*df1$chl.sc^muk +
+        exp(d2a)*df1$doc.sc + exp(u)
 
-    incvec <- moi3.all$lake != 45 & moi3.all$lake != 133
-    plot(log(moi3.all$doc[incvec]), log(moi3.all$don)[incvec])
-
-    stop()
-    abline(d2[40] - log(docsc)+log(tnsc),1)
+    plot(log(df1$chl.sc), log(df1$tn.sc) - log(predout), col = "grey",
+         ylim = c(-1,1))
+    abline(h=0)
+    plot(log(df1$chl.sc), log(df1$tn.sc - df1$nox.sc -
+                                  exp(d2a)*df1$doc.sc),
+         col = "grey")
+#                                  exp(d2[df1$econum])*df1$doc.sc^muk[2] - exp(u)), col = "grey")
+    abline(mud[1], muk[1])
 
     grey.t <- adjustcolor("grey39", alpha.f = 0.5)
-
-    muk <- mean(varout$muk)
 
     d1.mo <- apply(varout.mo$d1, 2, mean)
     k.mo <- apply(varout.mo$k, 2, mean)
     load("mn.val.tnmo.rda")
 
-    xnew <- seq(min(log(1)), max = log(100), length = 50)
+    xnew <- seq(log(1), log(100), length = 50)
     predout1 <- matrix(NA, ncol = 3, nrow = length(xnew))
     predout2 <- matrix(NA, ncol = 3, nrow = length(xnew))
     ns1 <- nrow(varout$mud)
@@ -187,6 +200,13 @@ tn.model <- function(df1, varout = NULL, varout.mo = NULL, runmod = F) {
     }
 
     dev.new()
+    plot(log(df1$chl.sc), log(df1$tn.sc - df1$nox.sc -
+                                  exp(d2a)*df1$doc.sc-
+         exp(u)))
+    abline(mud[1], muk[1])
+
+
+    dev.new()
     par(mar = c(4,4,1,1), mgp = c(2.3,1,0))
     plot(log(df1$chl.sc*chlsc), log((df1$tn.sc - df1$nox.sc)*tnsc),
          axes = F, xlab = expression(Chl~(mu*g/L)),
@@ -197,9 +217,7 @@ tn.model <- function(df1, varout = NULL, varout.mo = NULL, runmod = F) {
     logtick.exp(0.001, 10, c(1,2), c(F,F))
     polygon(c(xnew, rev(xnew)), c(predout1[,1], rev(predout1[,3])),
             col = grey.t, border= NA)
-#    abline(mud[1] + log(tnsc) - muk*log(chlsc), muk)
-#    abline(d1.mo[4] + log(mn.val["tn"]) - k.mo[1]*log(mn.val["chl"]) + log(1000),
-#           k.mo[1],lty = "dashed")
+
     lines(xnew, predout2[,1])
     lines(xnew, predout2[,3])
     stop()
@@ -388,7 +406,9 @@ tn.model <- function(df1, varout = NULL, varout.mo = NULL, runmod = F) {
 ## save extracted variables to varout to post-process
 #fitout <- tn.model(dat.merge.all, runmod = T)
 
-varout.n.limnat <- extract(fitout, pars = c("muk", "mud", "d1", "d2", "sigd", "u"))
+#varout.n.limnat <- extract(fitout, pars = c("u",
+#                                       "muk", "mud", "d1", "d2",
+#                                       "d2a", "sigd", "u"))
 
 tn.model(dat.merge.all, varout = varout.n.limnat, varout.mo = varout.mon.d1T.d2Lv,
          runmod = F)

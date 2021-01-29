@@ -217,14 +217,13 @@ tnmod <- function(df1, matout = NULL,varout = NULL,
     mub <- mean(varout$mub)
     u <- apply(varout$u, 2, mean)
 
-    dev.new()
-    plot(log(df1$chl), u)
-    mod <- lm(u ~ log(df1$chl))
-    print(summary(mod))
-    stop()
+
 
     d1 <- apply(varout$d1, 2, quantile, prob = c(0.05, 0.5, 0.95))
     d2 <- apply(varout$d2, 2, quantile, prob = c(0.05, 0.5, 0.95))
+
+    plot(log(df1$chl), log(exp(d2[df1$lakenum])*exp(u)^k[2]))
+    stop()
 
     dev.new()
     ucalc <- df1$vss - exp(mub)*df1$chl^k[3]
@@ -239,8 +238,9 @@ tnmod <- function(df1, matout = NULL,varout = NULL,
     dev.new()
     par(mar = c(4,4,1,1), mfrow = c(1,2))
     tnpred <- gettn(df1, varout, withu = T)
-    plot(log(tnpred), log(df1$tn))
-    abline(0,1)
+    plot(log(df1$chl), log(df1$tn)- log(tnpred))
+    abline(h=0)
+    stop()
     cat("Internal RMS:", rmsout(log(tnpred), log(df1$tn)), "\n")
     cat("External RMS:", rmsout(matout[,1], matout[,2]), "\n")
     plot(matout[,1], matout[,2])

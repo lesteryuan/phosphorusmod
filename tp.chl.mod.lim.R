@@ -37,9 +37,9 @@ ntumodel <- function(df1, varout = NULL, varout.mo = NULL,
     cat("N dropped for detection limit:", norig - nrow(df1), "\n")
 
     ## drop samples with chl > 100
-    incvec <- df1$chl < 195
+    incvec <- df1$chl < 108
     df1 <- df1[incvec,]
-    incvec <- df1$chl > 0.6
+    incvec <- df1$chl > 1
     df1 <- df1[incvec,]
 
     print(summary(df1$ptl.result))
@@ -95,7 +95,7 @@ ntumodel <- function(df1, varout = NULL, varout.mo = NULL,
     ## save data out to disk
     tpchldat <- df1
     save(tpchldat, chlsc, cutp.depth, file = "tpchldat.rda")
-    stop()
+
 
     datstan <- list(n = nrow(df1),
                     ndepth = max(df1$dclassnum),depthnum = df1$dclassnum,
@@ -201,7 +201,7 @@ ntumodel <- function(df1, varout = NULL, varout.mo = NULL,
 
     logtick.exp(0.001, 10, c(1,2), c(F,F))
 
-    x <- seq(min(log(df1$chl)), max(log(df1$chl)), length = 50)
+    x <- seq(min(log(0.5)), max(log(df1$chl)), length = 50)
     predout <- matrix(NA, ncol = 3, nrow = length(x))
 
     ## calculate estimate based on MO data
@@ -267,9 +267,9 @@ ntumodel <- function(df1, varout = NULL, varout.mo = NULL,
 
 ## runmod variable set to T to run simulation and set to F to
 ##  run post processing.
-##fitout <- ntumodel(dat.merge.all, runmod = T)
+#fitout <- ntumodel(dat.merge.all, runmod = T)
 ## post processing
-##varout.p.limnat <- extract(fitout, pars = c("muk", "mud", "sigd", "d1", "d2"))
+#varout.p.limnat <- extract(fitout, pars = c("muk", "mud", "sigd", "d1", "d2"))
 
 ntumodel(dat.merge.all, varout = varout.p.limnat,
          varout.mo = varout.mo.d1T.d2L,
