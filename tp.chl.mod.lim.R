@@ -128,12 +128,12 @@ ntumodel <- function(df1, varout = NULL, varout.mo = NULL,
         }
         parameters {
             real muk;  // exponents on chl and u in models
-            real mud;
-            vector[nseas] d2;
-            real<lower = 0> sigd[2];// SD of ecoregion- or depth-specific coef
+            real mud[2];
+          //  vector[nseas] d2;
+            real<lower = 0> sigd[3];// SD of ecoregion- or depth-specific coef
             vector[neco] etad1;
             vector[n] etad1a;
-//            vector[nseas] etad2;
+            vector[nseas] etad2;
 
             real<lower = 0> sigtp;    // measurement error of tp
 
@@ -143,24 +143,26 @@ ntumodel <- function(df1, varout = NULL, varout.mo = NULL,
             // difference among depths. just using mud[1]
             vector[neco] d1;
             vector[n] d1a;
-//            vector[nseas] d2;
+            vector[nseas] d2;
 
-            d1 = mud + sigd[1]*etad1;
-            d1a = d1[econum] + sigd[2]*etad1a;
-//            d2 = mud[2] + sigd[2]*etad2;
+            d1 = mud[1] + sigd[1]*etad1;
+            d1a = d1[econum] + sigd[3]*etad1a;
+            d2 = mud[2] + sigd[2]*etad2;
         }
         model {
             vector[n] tp_mn;
 
             muk ~ normal(1,1);    // muk should be somewhere around 1
             mud ~ normal(0,4);
-            d2 ~ normal(0,4);
+   //         d2 ~ normal(0,4);
 
-            sigd ~ cauchy(0,3);
+            sigd[1] ~ cauchy(0,3);
+            sigd[2] ~ cauchy(0,1);
+            sigd[3] ~ cauchy(0,3);
 
             etad1 ~ normal(0,1);
             etad1a ~ normal(0,1);
-//            etad2 ~ normal(0,1);
+            etad2 ~ normal(0,1);
 
             sigtp ~ normal(0.1, 0.002);
 
@@ -280,15 +282,15 @@ ntumodel <- function(df1, varout = NULL, varout.mo = NULL,
 
 ## runmod variable set to T to run simulation and set to F to
 ##  run post processing.
-#fitout <- ntumodel(dat.merge.all, runmod = T)
+fitout <- ntumodel(dat.merge.all, runmod = T)
 ## post processing
-#varout.p.limnat <- extract(fitout, pars = c("muk", "mud", "sigd", "d1", "d2", "d1a"))
+varout.p.limnat <- extract(fitout, pars = c("muk", "mud", "sigd", "d1", "d2", "d1a"))
 
-ntumodel(dat.merge.all, varout = varout.p.limnat,
-         varout.mo = varout.mo.d1T.d2L,
-         varout.n = varout.n.limnat,
-         varout.mo.n = varout.mon.d1T.d2Lv,
-         runmod = F)
+#ntumodel(dat.merge.all, varout = varout.p.limnat,
+#         varout.mo = varout.mo.d1T.d2L,
+#         varout.n = varout.n.limnat,
+#         varout.mo.n = varout.mon.d1T.d2Lv,
+#         runmod = F)
 
 
 
