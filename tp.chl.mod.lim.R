@@ -75,6 +75,8 @@ ntumodel <- function(df1, varout = NULL, varout.mo = NULL,
 
     ## make seas factor
     xcut <- seq(min(df1$yday.x), by = 30, length = 6)
+    print(xcut)
+
     xcut[6] <- max(df1$yday.x)
     hist(df1$yday.x)
     abline(v = xcut)
@@ -202,7 +204,22 @@ ntumodel <- function(df1, varout = NULL, varout.mo = NULL,
 
     rmsout <- function(x, y) sqrt(sum((x-y)^2)/length(x))
     print(rmsout(log(predout), log(df1$tp.sc)))
-    stop()
+
+    print(quantile(varout$muk, prob = credint))
+    for (i in 1:5) {
+        print(quantile(exp(varout$d2[,i] - varout$muk*log(chlsc) + log(tpsc)),
+                       prob = credint))
+    }
+    d1 <- apply(varout$d1, 2, mean)
+    ip <- which(d1 == min(d1))
+    dftemp <- unique.data.frame(df1[, c("econum", "us.l3code")])
+    dftemp <- dftemp[order(dftemp$econum),]
+    print(dftemp[ip,])
+
+    ip <- which(d1 == max(d1))
+    print(dftemp[ip,])
+    print(range(exp(d1 + log(tpsc))))
+
 
     png(width = 6, height = 2.5, pointsize = 6, units = "in", res = 600,
         file = "nla.mo.comp.png")
@@ -223,11 +240,15 @@ ntumodel <- function(df1, varout = NULL, varout.mo = NULL,
 
     nsamp <- nrow(varout$mud)
 
+    sigd <- sd(d2)
+    mud2 <- mean(d2)
+
     for (i in 1:length(x)) {
 #        y <- varout$mud[,3] - varout$muk[,3]*log(chlsc) +
 #            varout$muk[,3]*x[i]
-        y <-  rnorm(nsamp, mean = varout$mud[,2], sd = varout$sigd[,2])  +
+        y <-  rnorm(nsamp, mean = mud2, sd = sigd) +
             varout$muk*(x[i] - log(chlsc)) + log(tpsc)
+
         y2 <- varout.mo$d1[,4] +
             varout.mo$k[,2]*(x[i] - log(mn.val["chl"])) +
                 log(mn.val["tp"])
