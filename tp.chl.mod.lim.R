@@ -128,11 +128,12 @@ ntumodel <- function(df1, varout = NULL, varout.mo = NULL,
         }
         parameters {
             real muk;  // exponents on chl and u in models
-            real mud[2];
-            real<lower = 0> sigd[3];// SD of ecoregion- or depth-specific coef
+            real mud;
+            vector[nseas] d2;
+            real<lower = 0> sigd[2];// SD of ecoregion- or depth-specific coef
             vector[neco] etad1;
             vector[n] etad1a;
-            vector[nseas] etad2;
+//            vector[nseas] etad2;
 
             real<lower = 0> sigtp;    // measurement error of tp
 
@@ -142,23 +143,24 @@ ntumodel <- function(df1, varout = NULL, varout.mo = NULL,
             // difference among depths. just using mud[1]
             vector[neco] d1;
             vector[n] d1a;
-            vector[nseas] d2;
+//            vector[nseas] d2;
 
-            d1 = mud[1] + sigd[1]*etad1;
-            d1a = d1[econum] + sigd[3]*etad1a;
-            d2 = mud[2] + sigd[2]*etad2;
+            d1 = mud + sigd[1]*etad1;
+            d1a = d1[econum] + sigd[2]*etad1a;
+//            d2 = mud[2] + sigd[2]*etad2;
         }
         model {
             vector[n] tp_mn;
 
             muk ~ normal(1,1);    // muk should be somewhere around 1
             mud ~ normal(0,4);
+            d2 ~ normal(0,4);
 
             sigd ~ cauchy(0,3);
 
             etad1 ~ normal(0,1);
             etad1a ~ normal(0,1);
-            etad2 ~ normal(0,1);
+//            etad2 ~ normal(0,1);
 
             sigtp ~ normal(0.1, 0.002);
 
@@ -190,13 +192,16 @@ ntumodel <- function(df1, varout = NULL, varout.mo = NULL,
     grey.t <- adjustcolor("grey39", alpha.f = 0.5)
 
     credint <- c(0.025, 0.5, 0.975)
-    mud <- apply(varout$mud, 2, mean)
+    mud <- mean(varout$mud)
     muk <- mean(varout$muk)
-    d1a <- apply(varout$d1a, 2, mean)
+##    d1a <- apply(varout$d1a, 2, mean)  ## loaded from the file
     d2 <- apply(varout$d2, 2, mean)
     predout <- exp(d1a) + exp(d2[df1$seasnum])*df1$chl.sc^muk
-    plot(predout, log(df1$tp.sc))
+    plot(log(predout), log(df1$tp.sc))
     abline(0,1)
+
+    rmsout <- function(x, y) sqrt(sum((x-y)^2)/length(x))
+    print(rmsout(log(predout), log(df1$tp.sc)))
     stop()
 
     png(width = 6, height = 2.5, pointsize = 6, units = "in", res = 600,
@@ -277,7 +282,7 @@ ntumodel <- function(df1, varout = NULL, varout.mo = NULL,
 ##  run post processing.
 #fitout <- ntumodel(dat.merge.all, runmod = T)
 ## post processing
-#varout.p.limnat <- extract(fitout, pars = c("muk", "mud", "sigd", "d1", "d2"))
+#varout.p.limnat <- extract(fitout, pars = c("muk", "mud", "sigd", "d1", "d2", "d1a"))
 
 ntumodel(dat.merge.all, varout = varout.p.limnat,
          varout.mo = varout.mo.d1T.d2L,
