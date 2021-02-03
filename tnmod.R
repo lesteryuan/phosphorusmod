@@ -213,17 +213,18 @@ tnmod <- function(df1, matout = NULL,varout = NULL,
         }
     }
 
+    print(quantile(exp(varout$mud[,1] - varout$k[,1]*log(mn.val["chl"]) +
+                           log(mn.val["tn"]*1000)), prob = c(0.05, 0.5, 0.95)))
+    print(quantile(varout$k[,1], prob = c(0.05, 0.5, 0.95)))
+    stop()
     k <- apply(varout$k, 2, mean)
     mub <- mean(varout$mub)
     u <- apply(varout$u, 2, mean)
-
-
 
     d1 <- apply(varout$d1, 2, quantile, prob = c(0.05, 0.5, 0.95))
     d2 <- apply(varout$d2, 2, quantile, prob = c(0.05, 0.5, 0.95))
 
     plot(log(df1$chl), log(exp(d2[df1$lakenum])*exp(u)^k[2]))
-    stop()
 
     dev.new()
     ucalc <- df1$vss - exp(mub)*df1$chl^k[3]
@@ -234,18 +235,16 @@ tnmod <- function(df1, matout = NULL,varout = NULL,
     plot(log(df1$chl), log(df1$vss))
     abline(mub, k[3])
 
-
     dev.new()
     par(mar = c(4,4,1,1), mfrow = c(1,2))
     tnpred <- gettn(df1, varout, withu = T)
     plot(log(df1$chl), log(df1$tn)- log(tnpred))
     abline(h=0)
-    stop()
+
     cat("Internal RMS:", rmsout(log(tnpred), log(df1$tn)), "\n")
     cat("External RMS:", rmsout(matout[,1], matout[,2]), "\n")
     plot(matout[,1], matout[,2])
     abline(0,1)
-    stop()
 
     dev.new()
     par(mar = c(4,4,1,1), mfrow = c(1,2))
@@ -257,8 +256,6 @@ tnmod <- function(df1, matout = NULL,varout = NULL,
     plot(1:nd2, d2[2,], ylim = range(d2))
     segments(1:nd2, d2[1,], 1:nd2, d2[3,])
 
-
-
     dev.new()
     par(mar = c(4,4,1,1), mfrow = c(2,3))
     for (i in 1:6) {
@@ -267,12 +264,10 @@ tnmod <- function(df1, matout = NULL,varout = NULL,
         points(log(df1$chl)[incvec], log(df1$tn - df1$dtn)[incvec], pch = 21)
         abline(d1[2,i], k[1])
     }
-    stop()
 
     mud <- apply(varout$mud, 2, mean)
 
     abline(mud[1], k[1])
-
 
     plot(log(dat.merge.all$chl/mn.val["chl"]),
          log((dat.merge.all$ntl.result-dat.merge.all$no3no2.result)/

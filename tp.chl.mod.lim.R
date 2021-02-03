@@ -110,6 +110,7 @@ ntumodel <- function(df1, varout = NULL, varout.mo = NULL,
 
     print(str(datstan))
 
+
     modstan <- '
         data {
             int n;                 // number of samples
@@ -188,8 +189,15 @@ ntumodel <- function(df1, varout = NULL, varout.mo = NULL,
     ## post processing
     grey.t <- adjustcolor("grey39", alpha.f = 0.5)
 
+    credint <- c(0.025, 0.5, 0.975)
     mud <- apply(varout$mud, 2, mean)
     muk <- mean(varout$muk)
+    d1a <- apply(varout$d1a, 2, mean)
+    d2 <- apply(varout$d2, 2, mean)
+    predout <- exp(d1a) + exp(d2[df1$seasnum])*df1$chl.sc^muk
+    plot(predout, log(df1$tp.sc))
+    abline(0,1)
+    stop()
 
     png(width = 6, height = 2.5, pointsize = 6, units = "in", res = 600,
         file = "nla.mo.comp.png")
@@ -219,8 +227,8 @@ ntumodel <- function(df1, varout = NULL, varout.mo = NULL,
             varout.mo$k[,2]*(x[i] - log(mn.val["chl"])) +
                 log(mn.val["tp"])
 
-        predout[i,] <- quantile(y, prob = c(0.025, 0.5, 0.975))
-        predout.mo[i,] <- quantile(y2, prob = c(0.025, 0.5, 0.975))
+        predout[i,] <- quantile(y, prob = credint)
+        predout.mo[i,] <- quantile(y2, prob = credint)
     }
 
     polygon(c(x, rev(x)), c(predout.mo[,1], rev(predout.mo[,3])),
@@ -240,10 +248,10 @@ ntumodel <- function(df1, varout = NULL, varout.mo = NULL,
     for (i in 1:length(x)) {
         y <- rnorm(ns1, mean = varout.n$mud[,1], sd =varout.n$sigd[,1]) +
             varout.n$muk*(x[i]-log(chlsc)) + log(tnsc)
-        predout1[i,] <- quantile(y, prob = c(0.025, 0.5, 0.975))
+        predout1[i,] <- quantile(y, prob = credint)
         y2 <- varout.mo.n$d1[,4] + varout.mo.n$k[,1]*(x[i] - log(mn.val["chl"])) +
             log(mn.val["tn"]) + log(1000)
-        predout2[i,] <- quantile(y2, prob = c(0.025, 0.5, 0.975))
+        predout2[i,] <- quantile(y2, prob = credint)
     }
 
 
@@ -259,7 +267,7 @@ ntumodel <- function(df1, varout = NULL, varout.mo = NULL,
     lines(x, predout1[,3])
     dev.off()
 
-    return()
+
 
 
 

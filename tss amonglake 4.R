@@ -261,15 +261,40 @@ tss.explore <- function(df1, matout = NULL,varout = NULL, varout.n = NULL,
         }
     }
 
+    credint <- c(0.025, 0.5, 0.975)
+    print(quantile(exp(varout$mud[,1] - varout$k[,2]*log(mn.val["chl"]) + log(mn.val["tp"])), prob = credint))
+    print(quantile(varout$k[,2], prob =credint))
+
+    print("*** suspended sediment ***")
+    print(quantile(exp(varout$mud[,2] - varout$k[,3]*log(mn.val["tss"]) +
+                           log(mn.val["tp"])), prob =credint))
+    d2 <- apply(varout$d2, 2, mean)
+    print(range(exp(d2 - varout$k[,3]*log(mn.val["tss"]) +
+                           log(mn.val["tp"]))))
+    print(quantile(varout$k[,3], prob = credint))
+
+    print("*** volatile suspended sediment N ***")
+    print(quantile(exp(varout.n$mud[,2] - varout$k[,2]*log(mn.val["tss"]) +
+                           log(mn.val["tn"]*1000)), prob = credint))
+    d2n <- apply(varout.n$d2, 2, mean)
+    print(sort(exp(d2n)))
+
+    print(range(exp(d2n - varout$k[,2]*log(mn.val["tss"]) +
+                        log(mn.val["tn"]*1000))))
+    print(quantile(varout.n$k[,2], prob = credint))
+
     grey.t1 <- adjustcolor("grey20", alpha = 0.5)
     grey.t2 <- adjustcolor("grey70", alpha = 0.5)
 
     dftemp <- unique.data.frame(df1[, c("lakenum", "flush.rate")])
     dftemp <- dftemp[order(dftemp$lakenum),]
-    d2 <- apply(varout$d2, 2, mean)
+
     um <- mean(apply(varout$u, 2, mean))
 
     umn <- mean(apply(varout.n$u,2, mean))
+    print("*** mean suspended seds ***")
+    print(exp(um + log(mn.val["tss"])))
+    print(exp(umn + log(mn.val["tss"])))
 
     predout <- matrix(NA, ncol = 3, nrow = 15)
     predout2 <- matrix(NA, ncol = 3, nrow = 15)
@@ -278,16 +303,16 @@ tss.explore <- function(df1, matout = NULL,varout = NULL, varout.n = NULL,
             (exp(um)*mn.val["tss"])
         y2 <- 1000*mn.val["tn"]*exp(varout.n$d2[,i])*exp(umn)^varout.n$k[,2]/
             (exp(umn)*mn.val["tss"])
-        predout[i,] <- quantile(y, prob = c(0.05, 0.5, 0.95))
-        predout2[i,] <- quantile(y2, prob = c(0.05, 0.5, 0.95))
+        predout[i,] <- quantile(y, prob = c(0.025, 0.5, 0.975))
+        predout2[i,] <- quantile(y2, prob = c(0.025, 0.5, 0.975))
     }
 
-    png(width = 6, height = 2.5, pointsize = 6, units = "in", res = 600,
+    png(width = 6, height = 2.5, pointsize = 8, units = "in", res = 600,
         file = "lakessp.png")
     par(mar = c(4,4,1,1), mgp = c(2.3,1,0), bty = "l", mfrow = c(1,2))
     plot(log(dftemp$flush.rate), predout[,2], type = "n",axes = F,
          xlab = "Flush rate (1/yr)",
-         ylab = expression(P/SS~(mu*g/m*g)), ylim = range(predout))
+         ylab = expression(P/SS[np]~(mu*g/m*g)), ylim = range(predout))
     logtick.exp(0.001, 10, c(1), c(F,F))
     segments(log(dftemp$flush.rate), predout[,1],
              log(dftemp$flush.rate), predout[,3], col = "grey39")
@@ -298,7 +323,7 @@ tss.explore <- function(df1, matout = NULL,varout = NULL, varout.n = NULL,
 
     plot(log(dftemp$flush.rate), predout2[,2], type = "n",axes = F,
          xlab = "Flush rate (1/yr)",
-         ylab = expression(N/VSS~(mu*g/m*g)), ylim = range(predout2))
+         ylab = expression(N/VSS[np]~(mu*g/m*g)), ylim = range(predout2))
     logtick.exp(0.001, 10, c(1), c(F,F))
     segments(log(dftemp$flush.rate), predout2[,1],
              log(dftemp$flush.rate), predout2[,3], col = "grey39")
@@ -318,11 +343,11 @@ tss.explore <- function(df1, matout = NULL,varout = NULL, varout.n = NULL,
         y2 <- 1000*mn.val["tn"]*exp(varout.n$d1[,i])/(mn.val["chl"]^varout.n$k[,1])*chl0^(varout.n$k[,1]-1)
 
         y3 <- y2/y
-        predout[i,] <- quantile(y, prob = c(0.05, 0.5, 0.95))
-        predout2[i,] <- quantile(y2, prob = c(0.05, 0.5, 0.95))
-        predout3[i,] <- quantile(y3, prob = c(0.05, 0.5, 0.95))
+        predout[i,] <- quantile(y, prob = c(0.025, 0.5, 0.975))
+        predout2[i,] <- quantile(y2, prob = c(0.025, 0.5, 0.975))
+        predout3[i,] <- quantile(y3, prob = c(0.025, 0.5, 0.975))
     }
-    png(width = 6, height = 2, pointsize = 6, units ="in", res = 600,
+    png(width = 6, height = 2, pointsize = 8, units ="in", res = 600,
         file = "timechlp.png")
 
     par(mar = c(4,4,1,1), mgp = c(2.3,1,0), bty = "l", mfrow = c(1,3))
@@ -367,16 +392,16 @@ tss.explore <- function(df1, matout = NULL,varout = NULL, varout.n = NULL,
     for (i in 1:length(xnew)) {
         y <- rnorm(nsamp, mean = varout$mud[,1], sd = varout$sigd[,1]) +
             varout$k[,2]*(xnew[i]-log(mn.val["chl"])) + log(mn.val["tp"])
-        predout[i,] <- quantile(y, prob = c(0.05, 0.5, 0.95))
+        predout[i,] <- quantile(y, prob = c(0.025, 0.5, 0.975))
         y <- varout$mud[,1]+
             varout$k[,2]*(xnew[i]-log(mn.val["chl"])) + log(mn.val["tp"])
-        predouta[i,] <- quantile(y, prob = c(0.05, 0.5, 0.95))
+        predouta[i,] <- quantile(y, prob = c(0.025, 0.5, 0.975))
         y2 <- rnorm(nsamp2, mean = varout.n$mud[,1], sd = varout.n$sigd[,1]) +
             varout.n$k[,1]*(xnew[i] - log(mn.val["chl"])) + log(mn.val["tn"])
-        predout2[i,] <- quantile(y2, prob = c(0.05, 0.5, 0.95))
+        predout2[i,] <- quantile(y2, prob = c(0.025, 0.5, 0.975))
         y2 <- varout.n$mud[,1] +
             varout.n$k[,1]*(xnew[i] - log(mn.val["chl"])) + log(mn.val["tn"])
-        predout2a[i,] <- quantile(y2, prob = c(0.05, 0.5, 0.95))
+        predout2a[i,] <- quantile(y2, prob = c(0.025, 0.5, 0.975))
     }
     png(width = 6, height = 2.5, pointsize = 6, units = "in",
         res = 600, file = "molimits.png")
@@ -392,6 +417,12 @@ tss.explore <- function(df1, matout = NULL,varout = NULL, varout.n = NULL,
             border = NA)
     polygon(c(xnew, rev(xnew)), c(predouta[,1], rev(predouta[,3])), col = grey.t1,
             border = NA)
+
+    tout <- approx(xnew, predout[,1], log(10))
+    print(exp(tout$y))
+    tout <- approx(xnew, predout[,3], log(10))
+    print(exp(tout$y))
+
 
     plot(log(df1$chl) + log(mn.val["chl"]),
          log(df1$tn - df1$dtn) + log(mn.val["tn"]),

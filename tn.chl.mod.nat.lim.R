@@ -76,7 +76,6 @@ tn.model <- function(df1, varout = NULL, varout.mo = NULL, runmod = F) {
                         "index.lon.dd", "econum", "us.l3code")]
     save(tnchldat, docsc,tnsc, file = "tnchldat.rda")
 
-
     datstan <- list(n = nrow(df1),
                     neco = max(df1$econum),econum = df1$econum,
                     tn = log(df1$tn.sc - df1$nox.sc),
@@ -86,9 +85,7 @@ tn.model <- function(df1, varout = NULL, varout.mo = NULL, runmod = F) {
                     nseas = max(df1$seasnum),
                     seasnum = df1$seasnum)
 
-
     print(str(datstan))
-
 
     modstan <- '
         data {
@@ -159,12 +156,36 @@ tn.model <- function(df1, varout = NULL, varout.mo = NULL, runmod = F) {
         return(fit)
     }
 
+
+    grey.t <- adjustcolor("grey39", alpha.f = 0.5)
+
     mud<- apply(varout$mud, 2, mean)
     d2 <- apply(varout$d2, 2, mean)
-    d2a <- apply(varout$d2a, 2, mean)
-    u <- apply(varout$u, 2, mean)
+
     muk <- mean(varout$muk)
     d1 <- apply(varout$d1, 2, mean)
+
+    png(width = 3, height = 2.5, pointsize = 6, units = "in",
+        res = 600, file = "docdonplot.png")
+    par(mar = c(4,4,1,1), mgp = c(2.3,1,0))
+    plot(log(moi3.all$doc), log(moi3.all$don*1000), pch = 21,
+         col = "grey39", bg = "white", ylab = expression(DON~(mu*g/L)),
+         xlab = "DOC (mg/L)", axes = F)
+    logtick.exp(0.001, 10, c(1,2), c(T,T))
+    xnew <- seq(min(log(moi3.all$doc), na.rm = T), max(log(moi3.all$doc),
+                                           na.rm = T), length = 40)
+    print(xnew)
+    predout <- matrix(NA, ncol = 3, nrow = 40)
+    for (i in 1:length(xnew)) {
+        y <- varout$d2[,40] - log(docsc) + log(tnsc) + xnew[i]
+        predout[i,] <- quantile(y, prob = c(0.05, 0.5, 0.95))
+    }
+    polygon(c(xnew, rev(xnew)), c(predout[,1], rev(predout[,3])),
+            border = NA, col = grey.t)
+    lines(xnew, predout[,2])
+    dev.off()
+
+    stop()
     dev.new()
     par(mar = c(4,4,1,1), mfrow = c(1,2))
     predout <- df1$nox.sc + exp(d1[df1$seasnum])*df1$chl.sc^muk +
@@ -179,7 +200,7 @@ tn.model <- function(df1, varout = NULL, varout.mo = NULL, runmod = F) {
 #                                  exp(d2[df1$econum])*df1$doc.sc^muk[2] - exp(u)), col = "grey")
     abline(mud[1], muk[1])
 
-    grey.t <- adjustcolor("grey39", alpha.f = 0.5)
+
 
     d1.mo <- apply(varout.mo$d1, 2, mean)
     k.mo <- apply(varout.mo$k, 2, mean)
