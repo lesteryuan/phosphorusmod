@@ -157,6 +157,7 @@ tn.model <- function(df1, varout = NULL, varout.mo = NULL, runmod = F) {
     }
 
 
+    credint <- c(0.025, 0.5, 0.975)
     grey.t <- adjustcolor("grey39", alpha.f = 0.5)
 
     mud<- apply(varout$mud, 2, mean)
@@ -164,6 +165,26 @@ tn.model <- function(df1, varout = NULL, varout.mo = NULL, runmod = F) {
 
     muk <- mean(varout$muk)
     d1 <- apply(varout$d1, 2, mean)
+
+    predout.n <- exp(d1[df1$seasnum])*df1$chl.sc^muk +
+        exp(d2a)*df1$doc.sc + exp(u)
+    plot(log(predout.n), log(df1$tn.sc - df1$nox.sc))
+    rms <- sqrt(sum((log(predout.n)- log(df1$tn.sc - df1$nox.sc))^2)/
+                    nrow(df1))
+    cat("RMS:", rms, "\n")
+    print(quantile(varout$muk, probs = credint))
+    for (i in 1:5) {
+        print(quantile(exp(varout$d1[,i] - varout$muk*log(chlsc) + log(tnsc)),
+                       probs = credint))
+    }
+
+    d2 <- apply(varout$d2,2, mean)
+    print(range(exp(d2 - log(docsc) + log(tnsc))))
+    print(range(exp(u + log(tnsc))))
+    stop()
+
+
+    rmsout <- function(x, y) sqrt(sum((x-y)^2)/length(x))
 
     png(width = 3, height = 2.5, pointsize = 6, units = "in",
         res = 600, file = "docdonplot.png")

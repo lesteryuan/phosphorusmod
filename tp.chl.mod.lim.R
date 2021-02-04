@@ -196,7 +196,7 @@ ntumodel <- function(df1, varout = NULL, varout.mo = NULL,
     grey.t <- adjustcolor("grey39", alpha.f = 0.5)
 
     credint <- c(0.025, 0.5, 0.975)
-    mud <- mean(varout$mud)
+    mud <- apply(varout$mud, 2, mean)
     muk <- mean(varout$muk)
 ##    d1a <- apply(varout$d1a, 2, mean)  ## loaded from the file
     d2 <- apply(varout$d2, 2, mean)
@@ -204,9 +204,10 @@ ntumodel <- function(df1, varout = NULL, varout.mo = NULL,
     plot(log(predout), log(df1$tp.sc))
     abline(0,1)
 
-    rmsout <- function(x, y) sqrt(sum((x-y)^2)/length(x))
     print(rmsout(log(predout), log(df1$tp.sc)))
 
+    print(quantile(exp(varout$mud[,2] - varout$muk*log(chlsc) + log(tpsc)),
+                       prob = credint))
     print(quantile(varout$muk, prob = credint))
     for (i in 1:5) {
         print(quantile(exp(varout$d2[,i] - varout$muk*log(chlsc) + log(tpsc)),
@@ -242,13 +243,10 @@ ntumodel <- function(df1, varout = NULL, varout.mo = NULL,
 
     nsamp <- nrow(varout$mud)
 
-    sigd <- sd(d2)
-    mud2 <- mean(d2)
-
     for (i in 1:length(x)) {
 #        y <- varout$mud[,3] - varout$muk[,3]*log(chlsc) +
 #            varout$muk[,3]*x[i]
-        y <-  rnorm(nsamp, mean = mud2, sd = sigd) +
+        y <-  rnorm(nsamp, mean = varout$mud[,2], sd = varout$sigd[,2]) +
             varout$muk*(x[i] - log(chlsc)) + log(tpsc)
 
         y2 <- varout.mo$d1[,4] +
@@ -303,15 +301,15 @@ ntumodel <- function(df1, varout = NULL, varout.mo = NULL,
 
 ## runmod variable set to T to run simulation and set to F to
 ##  run post processing.
-fitout <- ntumodel(dat.merge.all, runmod = T)
+#fitout <- ntumodel(dat.merge.all, runmod = T)
 ## post processing
-varout.p.limnat <- extract(fitout, pars = c("muk", "mud", "sigd", "d1", "d2", "d1a"))
+#varout.p.limnat <- extract(fitout, pars = c("muk", "mud", "sigd", "d1", "d2", "d1a"))
 
-#ntumodel(dat.merge.all, varout = varout.p.limnat,
-#         varout.mo = varout.mo.d1T.d2L,
-#         varout.n = varout.n.limnat,
-#         varout.mo.n = varout.mon.d1T.d2Lv,
-#         runmod = F)
+ntumodel(dat.merge.all, varout = varout.p.limnat,
+         varout.mo = varout.mo.d1T.d2L,
+         varout.n = varout.n.limnat,
+         varout.mo.n = varout.mon.d1T.d2Lv,
+         runmod = F)
 
 
 
