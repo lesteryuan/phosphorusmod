@@ -64,6 +64,12 @@ tn.model <- function(df1, varout = NULL, varout.mo = NULL, runmod = F) {
 
     save(tnsc, file = "tnsc.rda")
 
+    ## drop 5 outliers in tn doc relationship
+    incvec <- (log(df1$tn.sc - df1$nox.sc) - log(df1$doc.sc)) > 3 |
+        (log(df1$tn.sc - df1$nox.sc) - log(df1$doc.sc)) < -2
+    print(sum(incvec))
+    df1 <- df1[!incvec,]
+
     ## make seas factor
     xcut <- seq(min(df1$yday.x), by = 30, length = 6)
     xcut[6] <- max(df1$yday.x)
@@ -118,9 +124,11 @@ tn.model <- function(df1, varout = NULL, varout.mo = NULL, runmod = F) {
             vector[neco] d2;
             vector[n] d2a;
             vector[n] u;
+
             d1 = mud[1] + sigd[1]*etad1;
             d2 = mud[2] + sigd[2]*etad2;
             d2a = d2[econum] + sigd[3]*etad2a;
+
             u = muu + etau*sigu;
         }
         model {
@@ -135,6 +143,7 @@ tn.model <- function(df1, varout = NULL, varout.mo = NULL, runmod = F) {
 
             muu ~ normal(0,3);
             etau ~ normal(0,1);
+
             sigu ~ cauchy(0,3);
 
             sigtn ~ normal(0.1, 0.002);
@@ -165,6 +174,23 @@ tn.model <- function(df1, varout = NULL, varout.mo = NULL, runmod = F) {
 
     muk <- mean(varout$muk)
     d1 <- apply(varout$d1, 2, mean)
+    u <- apply(varout$u, 2, mean)
+
+    dev.new()
+    par(mar = c(4,4,1,1), mfrow = c(1,2))
+    plot(log(df1$chl.sc), log(df1$tn.sc - df1$nox.sc))
+    incvec <- u > 0
+    points(log(df1$chl.sc)[incvec], log(df1$tn.sc - df1$nox.sc)[incvec],
+           pch = 16, col = "red")
+    plot(log(df1$doc.sc), log(df1$tn.sc - df1$nox.sc))
+    points(log(df1$doc.sc)[incvec], log(df1$tn.sc - df1$nox.sc)[incvec],
+           pch = 16, col ="red")
+    abline(-2, 1)
+    abline(3,1)
+#    plot(u, log(df1$tn.sc - df1$nox.sc))
+
+
+    stop()
 
     predout.n <- exp(d1[df1$seasnum])*df1$chl.sc^muk +
         exp(d2a)*df1$doc.sc + exp(u)
@@ -446,11 +472,11 @@ tn.model <- function(df1, varout = NULL, varout.mo = NULL, runmod = F) {
 }
 
 ## save extracted variables to varout to post-process
-#fitout <- tn.model(dat.merge.all, runmod = T)
+fitout <- tn.model(dat.merge.all, runmod = T)
 
-#varout.n.limnat <- extract(fitout, pars = c("u",
-#                                       "muk", "mud", "d1", "d2",
-#                                       "d2a", "sigd", "u"))
+varout.n.limnat <- extract(fitout, pars = c("u",
+                                       "muk", "mud", "d1", "d2",
+                                       "d2a", "sigd", "u", "muu"))
 
 tn.model(dat.merge.all, varout = varout.n.limnat, varout.mo = varout.mon.d1T.d2Lv,
          runmod = F)
