@@ -403,6 +403,43 @@ tss.explore <- function(df1, matout = NULL,varout = NULL, varout.n = NULL,
             varout.n$k[,1]*(xnew[i] - log(mn.val["chl"])) + log(mn.val["tn"])
         predout2a[i,] <- quantile(y2, prob = c(0.025, 0.5, 0.975))
     }
+
+    dev.new()
+    par(mar = c(4,4,1,1), mfrow = c(2,3))
+    for (i in 1:6) {
+        incvec <- df1$seasnum == i
+        plot(log(df1$chl)+ log(mn.val["chl"]),
+             log(df1$tp - df1$dtp) + log(mn.val["tp"]),
+             type = "n",
+             axes = F,
+             xlab = expression(Chl~(mu*g/L)),
+             ylab = expression(P[part]~(mu*g/L)))
+        points(log(df1$chl)[incvec]+ log(mn.val["chl"]),
+               log(df1$tp - df1$dtp)[incvec] + log(mn.val["tp"]),
+               pch = 21, col = "grey39", bg = "white")
+        logtick.exp(0.001, 10, c(1,2), c(F,F))
+        lines(xnew, predout[,2])
+    }
+    mub <- mean(varout$mub)
+    k <- apply(varout$k, 2, mean)
+    dev.new()
+    par(mar = c(4,4,1,1), mfrow = c(2,3))
+    for (i in 1:6) {
+        incvec <- df1$seasnum == i
+        plot(log(df1$chl),
+             log(df1$vss),
+             type = "n",
+             axes = F,
+             xlab = expression(Chl~(mu*g/L)),
+             ylab = expression(P[part]~(mu*g/L)))
+        points(log(df1$chl)[incvec],
+               log(df1$vss)[incvec],
+               pch = 21, col = "grey39", bg = "white")
+        logtick.exp(0.001, 10, c(1,2), c(F,F))
+        abline(mub, k[1])
+    }
+    stop()
+
     png(width = 6, height = 2.5, pointsize = 6, units = "in",
         res = 600, file = "molimits.png")
     par(mar = c(4,4,1,1), mfrow = c(1,2), mgp = c(2.3,1,0))
