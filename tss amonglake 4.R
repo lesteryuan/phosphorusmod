@@ -93,6 +93,8 @@ tss.explore <- function(df1, matout = NULL,varout = NULL, varout.n = NULL,
             vector[n] etau;
 
             real mub;
+            vector[nseas] etab;
+            real<lower = 0> sigb;
 
             real k[3];
 
@@ -111,17 +113,16 @@ tss.explore <- function(df1, matout = NULL,varout = NULL, varout.n = NULL,
             vector[n] tss_mn;
             vector[nseas] d1;
             vector[nlake] d2;
+            vector[nseas] b;
 
+            b = mub + etab*sigb;
             u = muu + etau*sigu;
 
             d1 = mud[1] + etad1*sigd[1];
             d2 = mud[2] + etad2*sigd[2];
-//            for (i in 1:nseas) {
-//                d2[,i] = mud[2] + etad2*sigd[2] + etad2a[i]*sigd[3];
-//            }
 
             for (i in 1:n) {
-               tss_mn[i] = exp(mub)*chl[i]^k[1] + exp(u[i]);
+               tss_mn[i] = exp(b[seasnum[i]])*chl[i]^k[1] + exp(u[i]);
 
                tp_mn[i] = exp(d1[seasnum[i]])*chl[i]^k[2] + dtp[i] +
                          exp(d2[lakenum[i]])*exp(u[i])^k[3];
@@ -129,11 +130,14 @@ tss.explore <- function(df1, matout = NULL,varout = NULL, varout.n = NULL,
             }
         }
         model {
+
             muu ~ normal(0,3);
             etau ~ normal(0,1);
             sigu ~ cauchy(0,3);
 
             mub ~ normal(0,3);
+            etab ~ normal(0,1);
+            sigb ~ cauchy(0,3);
 
             mud ~ normal(0,3);
             sigd ~ cauchy(0,3);
@@ -141,7 +145,7 @@ tss.explore <- function(df1, matout = NULL,varout = NULL, varout.n = NULL,
             etad2 ~ normal(0,1);
 
             k[1] ~ normal(0.85,0.01);  // from VSS model
-      //      k[1] ~ normal(1,1);
+       //    k[1] ~ normal(1,1);
             k[2] ~ normal(1,1);
             k[3] ~ normal(1,1);
 
@@ -161,9 +165,10 @@ tss.explore <- function(df1, matout = NULL,varout = NULL, varout.n = NULL,
         d1 <- apply(varout.loc$d1, 2, mean)
         d2 <- apply(varout.loc$d2, 2, mean)
         mub <- mean(varout.loc$mub)
+        b <- apply(varout.loc$b, 2, mean)
 
         if (! withu) {
-            u <- df$tss - exp(mub)*df$chl^k[1]
+            u <- df$tss - exp(b[df$seasnum])*df$chl^k[1]
             incvec <- u < 0
             u[incvec] <- 0
            }
@@ -180,7 +185,8 @@ tss.explore <- function(df1, matout = NULL,varout = NULL, varout.n = NULL,
 
         return(tppred)
     }
-    extractvars <- c("mud", "k", "mub", "u", "d1", "d2", "sigd", "sigtp", "sigtss")
+    extractvars <- c("k", "u", "d1", "d2", "sigd", "sigtp", "sigtss","mud",
+                     "mub", "sigb", "b")
 
     if (runmod) {
         require(rstan)
@@ -262,6 +268,36 @@ tss.explore <- function(df1, matout = NULL,varout = NULL, varout.n = NULL,
     }
 
     credint <- c(0.025, 0.5, 0.975)
+
+    u <- apply(varout$u,2, mean)
+    mub <- mean(varout$mub)
+    b <-apply(varout$b, 2, mean)
+    k <- apply(varout$k, 2, mean)
+    predtss <- exp(b[df1$seasnum])*df1$chl^k[1] + exp(u)
+    dev.new()
+    plot(log(predtss), log(df1$tss))
+    incvec <- df1$seasnum == 1
+    points(log(predtss)[incvec], log(df1$tss)[incvec], pch = 16, col = "red")
+    abline(0,1)
+    dev.new()
+    par(mar = c(4,4,1,1), mfrow = c(2,3))
+    for (i in 1:6) {
+        incvec <- df1$seasnum == i
+        plot(log(df1$chl), log(df1$tss),type = "n", axes = F,
+             xlab = expression(Chl~(mu*g/L)),
+             ylab = expression(TSS~(mu*g/L)))
+        points(log(df1$chl)[incvec],
+               log(df1$tss)[incvec],
+               pch = 21, col = "grey39", bg = "white")
+        logtick.exp(0.001, 10, c(1,2), c(F,F))
+        abline(b[i], k[1])
+    }
+
+    bq <- apply(varout$b, 2, quantile, prob = credint)
+    dev.new()
+    plot(1:6, exp(bq[2,]), ylim = range(exp(bq)))
+    segments(1:6, exp(bq[1,]), 1:6, exp(bq[3,]))
+
     print(quantile(exp(varout$mud[,1] - varout$k[,2]*log(mn.val["chl"]) + log(mn.val["tp"])), prob = credint))
     print(quantile(varout$k[,2], prob =credint))
 
@@ -274,7 +310,7 @@ tss.explore <- function(df1, matout = NULL,varout = NULL, varout.n = NULL,
     print(quantile(varout$k[,3], prob = credint))
 
     print("*** volatile suspended sediment N ***")
-    print(quantile(exp(varout.n$mud[,2] - varout$k[,2]*log(mn.val["tss"]) +
+    print(quantile(exp(varout.n$mud[,2] - varout.n$k[,2]*log(mn.val["tss"]) +
                            log(mn.val["tn"]*1000)), prob = credint))
     d2n <- apply(varout.n$d2, 2, mean)
     print(sort(exp(d2n)))
@@ -422,22 +458,6 @@ tss.explore <- function(df1, matout = NULL,varout = NULL, varout.n = NULL,
     }
     mub <- mean(varout$mub)
     k <- apply(varout$k, 2, mean)
-    dev.new()
-    par(mar = c(4,4,1,1), mfrow = c(2,3))
-    for (i in 1:6) {
-        incvec <- df1$seasnum == i
-        plot(log(df1$chl),
-             log(df1$vss),
-             type = "n",
-             axes = F,
-             xlab = expression(Chl~(mu*g/L)),
-             ylab = expression(P[part]~(mu*g/L)))
-        points(log(df1$chl)[incvec],
-               log(df1$vss)[incvec],
-               pch = 21, col = "grey39", bg = "white")
-        logtick.exp(0.001, 10, c(1,2), c(F,F))
-        abline(mub, k[1])
-    }
     stop()
 
     png(width = 6, height = 2.5, pointsize = 6, units = "in",
@@ -492,9 +512,9 @@ tss.explore <- function(df1, matout = NULL,varout = NULL, varout.n = NULL,
 
 }
 
-#varout.mo.d1T.d2L <- tss.explore(moi3.all, runmod = T, xvalid= F)
-#matout.mo.d1T.d2T <-  tss.explore(moi3.all, runmod = T, xvalid= T)
+#varout.test <- tss.explore(moi3.all, runmod = T, xvalid= F)
+matout.mo.d1T.d2L.bT <-  tss.explore(moi3.all, runmod = T, xvalid= T)
 
-tss.explore(moi3.all, matout = matout.mo.d1T.d2L, varout = varout.mo.d1T.d2L,
-            varout.n = varout.mon.d1T.d2Lv,
-            runmod = F, xvalid = F)
+#tss.explore(moi3.all, matout = matout.mo.d1T.d2L, varout = varout.test,
+#            varout.n = varout.mon.d1T.d2Lv,
+#            runmod = F, xvalid = F)
