@@ -10,8 +10,8 @@ sumrms <- function() {
                                      min(sum(!is.na(x)), sum(!is.na(y))))
 
     for (i in fname) {
-        load(paste("matout.mon.", i, "v.rda", sep = ""))
-        df <- get(paste("matout.mon.", i, "v",sep = ""))
+        load(paste("matout.mo.", i, ".rda", sep = ""))
+        df <- get(paste("matout.mo.", i, sep = ""))
         rmsout[i] <- getrms(df[,1], df[,2])
     }
 
