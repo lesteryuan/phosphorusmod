@@ -141,7 +141,7 @@ tss.explore <- function(df1, matout = NULL,varout = NULL, varout.n = NULL,
 
             mud ~ normal(0,3);
             sigd ~ cauchy(0,3);
-  //          etad1 ~ normal(0,1);
+            etad1 ~ normal(0,1);
             etad2 ~ normal(0,1);
 
        //     k[1] ~ normal(0.85,0.01);  // from VSS model
@@ -178,8 +178,8 @@ tss.explore <- function(df1, matout = NULL,varout = NULL, varout.n = NULL,
 
         tppred <- rep(NA, times = nrow(df))
         for (i in 1:nrow(df)) {
-            tppred[i] <- exp(d1[df$lakenum[i]])*df$chl[i]^k[2] + df$dtp[i] +
-                         exp(d2[df$seasnum[i]])*u[i]^k[3]
+            tppred[i] <- exp(d1[df$seasnum[i]])*df$chl[i]^k[2] + df$dtp[i] +
+                         exp(d2[df$lakenum[i]])*u[i]^k[3]
 
         }
 
@@ -267,6 +267,10 @@ tss.explore <- function(df1, matout = NULL,varout = NULL, varout.n = NULL,
         }
     }
 
+    tp.pred <- gettp(df =df1, varout.loc = varout, withu = T)
+    print(rmsout(log(tp.pred), log(df1$tp)))
+    stop()
+
     credint <- c(0.025, 0.5, 0.975)
 
     u <- apply(varout$u,2, mean)
@@ -292,11 +296,6 @@ tss.explore <- function(df1, matout = NULL,varout = NULL, varout.n = NULL,
         logtick.exp(0.001, 10, c(1,2), c(F,F))
         abline(b[i], k[1])
     }
-
-    bq <- apply(varout$b, 2, quantile, prob = credint)
-    dev.new()
-    plot(1:6, exp(bq[2,]), ylim = range(exp(bq)))
-    segments(1:6, exp(bq[1,]), 1:6, exp(bq[3,]))
 
     print(quantile(exp(varout$mud[,1] - varout$k[,2]*log(mn.val["chl"]) + log(mn.val["tp"])), prob = credint))
     print(quantile(varout$k[,2], prob =credint))
@@ -326,7 +325,6 @@ tss.explore <- function(df1, matout = NULL,varout = NULL, varout.n = NULL,
     dftemp <- dftemp[order(dftemp$lakenum),]
 
     um <- mean(apply(varout$u, 2, mean))
-
     umn <- mean(apply(varout.n$u,2, mean))
     print("*** mean suspended seds ***")
     print(exp(um + log(mn.val["tss"])))
@@ -335,7 +333,7 @@ tss.explore <- function(df1, matout = NULL,varout = NULL, varout.n = NULL,
     predout <- matrix(NA, ncol = 3, nrow = 15)
     predout2 <- matrix(NA, ncol = 3, nrow = 15)
     for (i in 1:15) {
-        y <- mn.val["tp"]*exp(varout$d2[,i])*exp(um)^varout$k[,3]/
+        y <- mn.val["tp"]*exp(varout$d1[,i])*exp(um)^varout$k[,3]/
             (exp(um)*mn.val["tss"])
         y2 <- 1000*mn.val["tn"]*exp(varout.n$d2[,i])*exp(umn)^varout.n$k[,2]/
             (exp(umn)*mn.val["tss"])
@@ -343,8 +341,9 @@ tss.explore <- function(df1, matout = NULL,varout = NULL, varout.n = NULL,
         predout2[i,] <- quantile(y2, prob = c(0.025, 0.5, 0.975))
     }
 
-    png(width = 6, height = 2.5, pointsize = 8, units = "in", res = 600,
-        file = "lakessp.png")
+#    png(width = 6, height = 2.5, pointsize = 8, units = "in", res = 600,
+#        file = "lakessp.png")
+    dev.new()
     par(mar = c(4,4,1,1), mgp = c(2.3,1,0), bty = "l", mfrow = c(1,2))
     plot(log(dftemp$flush.rate), predout[,2], type = "n",axes = F,
          xlab = "Flush rate (1/yr)",
@@ -375,7 +374,7 @@ tss.explore <- function(df1, matout = NULL,varout = NULL, varout.n = NULL,
     predout2 <- matrix(NA, ncol = 3, nrow = 6)
     predout3 <- matrix(NA, ncol = 3, nrow = 6)
     for (i in 1:6) {
-        y <- mn.val["tp"]*exp(varout$d1[,i])/(mn.val["chl"]^varout$k[,2])*chl0^(varout$k[,2]-1)
+        y <- mn.val["tp"]*exp(varout$d2[,i])/(mn.val["chl"]^varout$k[,2])*chl0^(varout$k[,2]-1)
         y2 <- 1000*mn.val["tn"]*exp(varout.n$d1[,i])/(mn.val["chl"]^varout.n$k[,1])*chl0^(varout.n$k[,1]-1)
 
         y3 <- y2/y
@@ -383,9 +382,9 @@ tss.explore <- function(df1, matout = NULL,varout = NULL, varout.n = NULL,
         predout2[i,] <- quantile(y2, prob = c(0.025, 0.5, 0.975))
         predout3[i,] <- quantile(y3, prob = c(0.025, 0.5, 0.975))
     }
-    png(width = 6, height = 2, pointsize = 8, units ="in", res = 600,
-        file = "timechlp.png")
-
+#    png(width = 6, height = 2, pointsize = 8, units ="in", res = 600,
+#        file = "timechlp.png")
+    dev.new()
     par(mar = c(4,4,1,1), mgp = c(2.3,1,0), bty = "l", mfrow = c(1,3))
     plot(1:6, predout[,2], ylim = range(predout), type = "n", xlab = "",
          ylab = expression(P/Chl~(mu*g/mu*g)), axes= F)
@@ -511,9 +510,9 @@ tss.explore <- function(df1, matout = NULL,varout = NULL, varout.n = NULL,
 
 }
 
-varout.mo.d1L.d2T <- tss.explore(moi3.all, runmod = T, xvalid= F)
+##varout.mo.d1L.d2T <- tss.explore(moi3.all, runmod = T, xvalid= F)
 #matout.mo.d10.d2L <-  tss.explore(moi3.all, runmod = T, xvalid= T)
 
-#tss.explore(moi3.all, matout = matout.mo.d1T.d2L, varout = varout.mo.d1T.d2L,
-#            varout.n = varout.mon.d1T.d2Lv,
-#            runmod = F, xvalid = F)
+tss.explore(moi3.all, matout = matout.mo.d1T.d2L, varout = varout.mo.d1T.d2L,
+            varout.n = varout.mon.d1T.d2Lv,
+            runmod = F, xvalid = F)
