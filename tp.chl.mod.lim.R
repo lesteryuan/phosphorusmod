@@ -204,8 +204,6 @@ ntumodel <- function(df1, varout = NULL, varout.mo = NULL,
     plot(log(predout), log(df1$tp.sc))
     abline(0,1)
 
-    print(rmsout(log(predout), log(df1$tp.sc)))
-
     print(quantile(exp(varout$mud[,2] - varout$muk*log(chlsc) + log(tpsc)),
                        prob = credint))
     print(quantile(varout$muk, prob = credint))
