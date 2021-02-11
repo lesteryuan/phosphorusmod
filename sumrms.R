@@ -13,6 +13,7 @@ sumrms <- function() {
         load(paste("matout.mo.", i, ".rda", sep = ""))
         df <- get(paste("matout.mo.", i, sep = ""))
         rmsout[i] <- getrms(df[,1], df[,2])
+        print(sum(is.na(df$pred)))
     }
 
     print(rmsout)

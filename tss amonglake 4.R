@@ -36,7 +36,8 @@ tss.explore <- function(df1, matout = NULL,varout = NULL, varout.n = NULL,
         df1$yday.q[incvec]<- 4
     }
     else {
-        df1$yday.q <- ceiling(df1$month*0.5)
+        #df1$yday.q <- ceiling(df1$month*0.5)
+        df1$yday.q <- df1$month
     }
 
     print(table(df1$month))
@@ -100,7 +101,7 @@ tss.explore <- function(df1, matout = NULL,varout = NULL, varout.n = NULL,
 
             vector[2] mud;
             real<lower = 0> sigd[2];
-            vector[nlake] etad1;
+            vector[nseas] etad1;
             vector[nseas] etad2;
 
             real<lower = 0> sigtss;
@@ -111,7 +112,7 @@ tss.explore <- function(df1, matout = NULL,varout = NULL, varout.n = NULL,
             vector[n] u;
             vector[n] tp_mn;
             vector[n] tss_mn;
-            vector[nlake] d1;
+            vector[nseas] d1;
             vector[nseas] d2;
             vector[nseas] b;
 
@@ -122,10 +123,10 @@ tss.explore <- function(df1, matout = NULL,varout = NULL, varout.n = NULL,
             d2 = mud[2] + etad2*sigd[2];
 
             for (i in 1:n) {
-               tss_mn[i] = exp(b[seasnum[i]])*chl[i]^k[1] + exp(u[i]);
+               tss_mn[i] = log_sum_exp(b[seasnum[i]] + k[1]*chl[i], u[i]);
 
-               tp_mn[i] = exp(d1[lakenum[i]])*chl[i]^k[2] + dtp[i] +
-                         exp(d2[seasnum[i]])*exp(u[i])^k[3];
+               tp_mn[i] = log_sum_exp(mud[1]+k[2]*chl[i],
+                                      d2[seasnum[i]]+k[3]*u[i]);
 
             }
         }
@@ -152,8 +153,8 @@ tss.explore <- function(df1, matout = NULL,varout = NULL, varout.n = NULL,
             sigtp ~ cauchy(0,3);
             sigtss ~ normal(0.1, 0.02);
 
-            tss ~ student_t(4,log(tss_mn), sigtss);
-            tp ~ student_t(4,log(tp_mn), sigtp);
+            tss ~ student_t(4,tss_mn, sigtss);
+            tp ~ student_t(4,tp_mn, sigtp);
         }
     '
     rmsout <- function(x,y) sqrt(sum((x-y)^2, na.rm = T)/
@@ -167,10 +168,13 @@ tss.explore <- function(df1, matout = NULL,varout = NULL, varout.n = NULL,
         mub <- mean(varout.loc$mub)
         b <- apply(varout.loc$b, 2, mean)
 
+        flag <- rep(F, times = nrow(df))
+
         if (! withu) {
             u <- df$tss - exp(b[df$seasnum])*df$chl^k[1]
             incvec <- u < 0
             u[incvec] <- 0
+            flag[incvec] <- T
            }
         else {
             u <- exp(apply(varout.loc$u, 2, mean))
@@ -178,12 +182,12 @@ tss.explore <- function(df1, matout = NULL,varout = NULL, varout.n = NULL,
 
         tppred <- rep(NA, times = nrow(df))
         for (i in 1:nrow(df)) {
-            tppred[i] <- exp(d1[df$seasnum[i]])*df$chl[i]^k[2] + df$dtp[i] +
-                         exp(d2[df$lakenum[i]])*u[i]^k[3]
+            tppred[i] <- exp(mud[1])*df$chl[i]^k[2] + df$dtp[i] +
+                         exp(d2[df$seasnum[i]])*u[i]^k[3]
 
         }
 
-        return(tppred)
+        return(list(tppred = tppred, flag=flag))
     }
     extractvars <- c("k", "u", "d1", "d2", "sigd", "sigtp", "sigtss","mud",
                      "mub", "sigb", "b")
@@ -197,12 +201,12 @@ tss.explore <- function(df1, matout = NULL,varout = NULL, varout.n = NULL,
         if (! xvalid) {
             datstan <- list(n = nrow(df1),
                             nlake = max(df1$lakenum),lakenum = df1$lakenum,
-                            nseas = 6, seasnum = df1$seasnum,
+                            nseas = max(df1$seasnum), seasnum = df1$seasnum,
                             nvss = df1$nvss,
-                            tp = log(df1$tp),
+                            tp = log(df1$tp - df1$dtp),
                             dtp = df1$dtp,
                             vss = df1$vss,
-                            chl = df1$chl,
+                            chl = log(df1$chl),
                             tss = log(df1$tss))
             print(str(datstan))
 
@@ -215,7 +219,7 @@ tss.explore <- function(df1, matout = NULL,varout = NULL, varout.n = NULL,
             save(fit, file = "fitmo.rda")
             varout <- extract(fit, pars = extractvars)
 
-            tp.pred <- gettp(df =df1, varout.loc = varout, withu = T)
+            tp.pred <- gettp(df =df1, varout.loc = varout, withu = T)[[1]]
             dev.new()
             plot(log(tp.pred), log(df1$tp))
             abline(0,1)
@@ -224,7 +228,7 @@ tss.explore <- function(df1, matout = NULL,varout = NULL, varout.n = NULL,
         }
         else {
 
-            set.seed(3)
+            set.seed(31) # original value is 3
             require(loo)
             nfold <- 5
             ik <- kfold_split_random(nfold, nrow(df1))
@@ -235,12 +239,12 @@ tss.explore <- function(df1, matout = NULL,varout = NULL, varout.n = NULL,
                 dftemp <- df1[ik != jj,]
                 datstan <- list(n = nrow(dftemp),
                           nlake = max(dftemp$lakenum),lakenum = dftemp$lakenum,
-                           nseas = 6, seasnum = dftemp$seasnum,
+                           nseas = max(dftemp$seasnum), seasnum = dftemp$seasnum,
                                 nvss = dftemp$nvss,
                                 tp = log(dftemp$tp),
                                 dtp = dftemp$dtp,
                                 vss = dftemp$vss,
-                                chl = dftemp$chl,
+                                chl = log(dftemp$chl),
                                 tss = log(dftemp$tss))
                 print(str(datstan))
 
@@ -250,7 +254,7 @@ tss.explore <- function(df1, matout = NULL,varout = NULL, varout.n = NULL,
                             control = list(adapt_delta = 0.98, max_treedepth = 14))
 
                 varout <- extract(fit, pars = extractvars)
-                tp.pred <- gettp(dftemp2, varout, withu = FALSE)
+                tp.pred <- gettp(dftemp2, varout, withu = FALSE)[[1]]
 
                 matval <- data.frame(pred = log(tp.pred), obs = log(dftemp2$tp))
 
@@ -267,13 +271,68 @@ tss.explore <- function(df1, matout = NULL,varout = NULL, varout.n = NULL,
         }
     }
 
-    tp.pred <- gettp(df =df1, varout.loc = varout, withu = T)
-    print(rmsout(log(tp.pred), log(df1$tp)))
+    k <- apply(varout$k, 2, mean)
+
+    b <- apply(varout$b, 2, mean)
+    mub <- mean(varout$mub)
+    u <- apply(varout$u, 2, mean)
+
+    dev.new()
+    par(mar = c(4,4,1,1), mfrow = c(4,3))
+    for (i in 1:12) {
+        incvec <- df1$seasnum == i
+        plot(log(df1$chl)[incvec], log(df1$tss)[incvec])
+        abline(b[i], k[1])
+        abline(mub, k[1], lty = "dashed")
+    }
+    d1 <- apply(varout$d1, 2, mean)
+    mud <- apply(varout$mud, 2, mean)
+    dev.new()
+    par(mar = c(4,4,1,1), mfrow = c(4,4))
+    for (i in 1:15) {
+        incvec <- df1$lakenum == i
+        plot(log(df1$chl), log(df1$tp-df1$dtp), type = "n")
+        points(log(df1$chl)[incvec], log(df1$tp - df1$dtp)[incvec])
+        abline(d1[i], k[2])
+        abline(mud[1], k[2], lty = "dashed")
+    }
+
+    d2 <- apply(varout$d2, 2, mean)
+    dev.new()
+    par(mar = c(4,4,1,1), mfrow = c(4,4))
+    for (i in 1:15) {
+        incvec <- df1$lakenum == i
+        plot(u, log(df1$tp-df1$dtp),type = "n")
+        points( u[incvec], log(df1$tp-df1$dtp)[incvec])
+        abline(d2[i], k[3])
+        abline(mud[2], k[3], lty = "dashed")
+    }
+
     stop()
+
+    y <- gettp(df =df1, varout.loc = varout, withu = T)
+    tp.pred <- y[[1]]
+    y <- gettp(df=df1, varout.loc = varout, withu = F)
+    tp.pred2 <- y[[1]]
+    incvec <- y[[2]]
+    cat("Number of u zeroes:", sum(incvec), "\n")
+    dev.new()
+    par(mar = c(4,4,1,1), mfrow = c(1,2))
+    plot(log(tp.pred), log(tp.pred2), pch = 21, col ="grey39", bg = "white")
+    points(log(tp.pred)[incvec], log(tp.pred2)[incvec], pch = 16, col = "red")
+
+    points(log(df1$chl)[incvec], log(df1$tp-df1$dtp)[incvec],pch = 16, col = "red")
+
+    print(rmsout(log(tp.pred), log(df1$tp)))
+    print(rmsout(log(tp.pred2), log(df1$tp)))
+    print(rmsout(log(tp.pred2)[!incvec], log(df1$tp)[!incvec]))
+    stop()
+
 
     credint <- c(0.025, 0.5, 0.975)
 
     u <- apply(varout$u,2, mean)
+
     mub <- mean(varout$mub)
     b <-apply(varout$b, 2, mean)
     k <- apply(varout$k, 2, mean)
@@ -321,8 +380,13 @@ tss.explore <- function(df1, matout = NULL,varout = NULL, varout.n = NULL,
     grey.t1 <- adjustcolor("grey20", alpha = 0.5)
     grey.t2 <- adjustcolor("grey70", alpha = 0.5)
 
-    dftemp <- unique.data.frame(df1[, c("lakenum", "flush.rate")])
+    dftemp <- unique.data.frame(df1[, c("lakenum", "flush.rate", "logit_crop")])
     dftemp <- dftemp[order(dftemp$lakenum),]
+
+    d1 <- apply(varout$d1, 2, mean)
+    dev.new()
+    plot(log(dftemp$flush.rate), exp(d1))
+    stop()
 
     um <- mean(apply(varout$u, 2, mean))
     umn <- mean(apply(varout.n$u,2, mean))
@@ -333,7 +397,7 @@ tss.explore <- function(df1, matout = NULL,varout = NULL, varout.n = NULL,
     predout <- matrix(NA, ncol = 3, nrow = 15)
     predout2 <- matrix(NA, ncol = 3, nrow = 15)
     for (i in 1:15) {
-        y <- mn.val["tp"]*exp(varout$d1[,i])*exp(um)^varout$k[,3]/
+        y <- mn.val["tp"]*exp(varout$d2[,i])*exp(um)^varout$k[,3]/
             (exp(um)*mn.val["tss"])
         y2 <- 1000*mn.val["tn"]*exp(varout.n$d2[,i])*exp(umn)^varout.n$k[,2]/
             (exp(umn)*mn.val["tss"])
@@ -355,6 +419,7 @@ tss.explore <- function(df1, matout = NULL,varout = NULL, varout.n = NULL,
            bg = "white")
     axis(2)
     box(bty = "l")
+    stop()
 
     plot(log(dftemp$flush.rate), predout2[,2], type = "n",axes = F,
          xlab = "Flush rate (1/yr)",
@@ -510,9 +575,8 @@ tss.explore <- function(df1, matout = NULL,varout = NULL, varout.n = NULL,
 
 }
 
-##varout.mo.d1L.d2T <- tss.explore(moi3.all, runmod = T, xvalid= F)
-#matout.mo.d10.d2L <-  tss.explore(moi3.all, runmod = T, xvalid= T)
+varout.mo.d10.d2T <- tss.explore(moi3.all, runmod = T, xvalid= F)
+#matout.mo.d1T.d2L.4 <-  tss.explore(moi3.all, runmod = T, xvalid= T)
 
-tss.explore(moi3.all, matout = matout.mo.d1T.d2L, varout = varout.mo.d1T.d2L,
-            varout.n = varout.mon.d1T.d2Lv,
-            runmod = F, xvalid = F)
+#tss.explore(moi3.all, matout = matout.mo.d1T.d2L, varout = varout.mo.d1L.d2L,
+#            varout.n = varout.mon.d1T.d2Lv,runmod = F, xvalid = F)

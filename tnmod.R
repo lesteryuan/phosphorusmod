@@ -14,7 +14,8 @@ tnmod <- function(df1, matout = NULL,varout = NULL,
     print(summary(df1$flush.rate))
 
     nperiod <- 6
-    df1$yday.q <- ceiling(df1$month*0.5)
+   # df1$yday.q <- ceiling(df1$month*0.5)
+    df1$yday.q <- df1$month
     df1$yday.q <- factor(df1$yday.q)
     print(table(df1$yday.q))
 
@@ -87,10 +88,10 @@ tnmod <- function(df1, matout = NULL,varout = NULL,
             u = muu + sigu*etau;
 
             for (i in 1:n) {
-                tss_mn[i] = exp(mub)*chl[i]^k[3] + exp(u[i]);
+                tss_mn[i] = log_sum_exp(mub + k[3]*chl[i], u[i]);
 
-                tn_mn[i] = dtn[i] + exp(d1[seasnum[i]])*chl[i]^k[1] +
-                        exp(d2[lakenum[i]])*exp(u[i])^k[2];
+                tn_mn[i] = log_sum_exp(d1[seasnum[i]] + k[1]*chl[i],
+                        mud[2] + k[2]*u[i]);
             }
         }
         model {
@@ -110,29 +111,34 @@ tnmod <- function(df1, matout = NULL,varout = NULL,
 
             sigtn ~ cauchy(0,3);
 
-            tss ~ student_t(4,log(tss_mn), sigtss);
-            tn ~ student_t(4,log(tn_mn), sigtn);
+            tss ~ student_t(4,tss_mn, sigtss);
+            tn ~ student_t(4,tn_mn, sigtn);
         }
     '
     rmsout <- function(x,y) sqrt(sum((x-y)^2, na.rm = T)/
                                      min(sum(! is.na(x)), sum(!is.na(y))))
     gettn <- function(df, varout, withu=T) {
+        print(str(varout))
+        stop()
         k <- apply(varout$k,2,mean)
         mud <- apply(varout$mud, 2, mean)
         mub <- mean(varout$mub)
         d1 <- apply(varout$d1, 2, mean)
         d2 <- apply(varout$d2, 2, mean)
 
+
         if (withu) {
             u <- exp(apply(varout$u, 2, mean))
         }
         else {
             u <- df$vss - exp(mub)*df$chl^k[3]
-            u[u <= 0] <- NA
+            u[u <= 0] <- 0
         }
 
-        tnpred <- df$dtn + exp(d1[df$seasnum])*df$chl^k[1] +
-            exp(d2[df$lakenum])*u^k[2]
+        tnpred <- exp(d1[df$seasnum[i]])*df$chl^k[1] +
+            exp(mud[2])*u^k[2]
+        print(summary(tnpred))
+        stop()
 
         return(tnpred)
     }
@@ -148,23 +154,23 @@ tnmod <- function(df1, matout = NULL,varout = NULL,
         if (! xvalid) {
             datstan <- list(n = nrow(df1),
                             nlake = max(df1$lakenum),lakenum = df1$lakenum,
-                            nseas = 6, seasnum = df1$seasnum,
-                            tn = log(df1$tn),
+                            nseas = max(df1$seasnum), seasnum = df1$seasnum,
+                            tn = log(df1$tn-df1$dtn),
                             dtn = df1$dtn,
-                            chl = df1$chl,
+                            chl = log(df1$chl),
                             tss = log(df1$vss))
             print(str(datstan))
 
             fit <- stan(model_code = modstan,
-                        data = datstan, iter = 1000, chains = nchains,
-                        warmup = 400, thin= 1,
+                        data = datstan, iter = 1800, chains = nchains,
+                        warmup = 600, thin= 1,
                         control = list(adapt_delta = 0.98, max_treedepth = 14))
             save(fit, file = "fitout.rda")
             varout <- extract(fit, pars = extractvars)
 
             tnpred <- gettn(df1, varout)
             dev.new()
-            plot(log(tnpred), log(df1$tn))
+            plot(log(tnpred), log(df1$tn-df1$dtn))
             abline(0,1)
             cat("Internal RMS:", rmsout(log(tnpred), log(df1$tn)), "\n")
 
@@ -212,6 +218,11 @@ tnmod <- function(df1, matout = NULL,varout = NULL,
             return(matall)
         }
     }
+
+    print("here")
+    tnpred <- gettn(df1, varout)
+    print(summary(tnpred))
+    stop()
 
     print(quantile(exp(varout$mud[,1] - varout$k[,1]*log(mn.val["chl"]) +
                            log(mn.val["tn"]*1000)), prob = c(0.05, 0.5, 0.95)))
@@ -290,7 +301,7 @@ tnmod <- function(df1, matout = NULL,varout = NULL,
     return()
 
 }
-#varout.mon.d1T.d2Lv <- tnmod(moi3.all, runmod = T, xvalid = F)
+#varout.mon.d1T.d20 <- tnmod(moi3.all, runmod = T, xvalid = F)
 #matout.mon.d1T.d2Tv <- tnmod(moi3.all, runmod = T, xvalid = T)
-tnmod(moi3.all, matout = matout.mon.d1T.d2Lv,
-      varout = varout.mon.d1T.d2Lv, runmod = F, xvalid = F)
+tnmod(moi3.all, matout = matout.mon.d1T.d20,
+      varout = varout.mon.d1T.d20, runmod = F, xvalid = F)
