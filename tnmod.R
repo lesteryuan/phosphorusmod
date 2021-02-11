@@ -61,8 +61,8 @@ tnmod <- function(df1, matout = NULL,varout = NULL,
             real k[3];
             vector[2] mud;
             real<lower = 0> sigd[2];
-            vector[nseas] etad1;
-            vector[nlake] etad2;
+            vector[nlake] etad1;
+            vector[nseas] etad2;
 
             real<lower = 0> sigtn;
 
@@ -79,8 +79,8 @@ tnmod <- function(df1, matout = NULL,varout = NULL,
             vector[n] u;
             vector[n] tss_mn;
 
-            vector[nseas] d1;
-            vector[nlake] d2;
+            vector[nlake] d1;
+            vector[nseas] d2;
 
             d1 = mud[1] + etad1*sigd[1];
             d2 = mud[2] + etad2*sigd[2];
@@ -90,8 +90,8 @@ tnmod <- function(df1, matout = NULL,varout = NULL,
             for (i in 1:n) {
                 tss_mn[i] = log_sum_exp(mub + k[3]*chl[i], u[i]);
 
-                tn_mn[i] = log_sum_exp(d1[seasnum[i]] + k[1]*chl[i],
-                        mud[2] + k[2]*u[i]);
+                tn_mn[i] = log_sum_exp(mud[1] + k[1]*chl[i],
+                        d2[seasnum[i]] + k[2]*u[i]);
             }
         }
         model {
@@ -118,8 +118,6 @@ tnmod <- function(df1, matout = NULL,varout = NULL,
     rmsout <- function(x,y) sqrt(sum((x-y)^2, na.rm = T)/
                                      min(sum(! is.na(x)), sum(!is.na(y))))
     gettn <- function(df, varout, withu=T) {
-        print(str(varout))
-        stop()
         k <- apply(varout$k,2,mean)
         mud <- apply(varout$mud, 2, mean)
         mub <- mean(varout$mub)
@@ -135,11 +133,8 @@ tnmod <- function(df1, matout = NULL,varout = NULL,
             u[u <= 0] <- 0
         }
 
-        tnpred <- exp(d1[df$seasnum[i]])*df$chl^k[1] +
+        tnpred <- exp(d1[df$seasnum])*df$chl^k[1] +
             exp(mud[2])*u^k[2]
-        print(summary(tnpred))
-        stop()
-
         return(tnpred)
     }
     extractvars <- c("mud", "k", "u", "mub", "d1", "d2", "sigd")
@@ -172,7 +167,7 @@ tnmod <- function(df1, matout = NULL,varout = NULL,
             dev.new()
             plot(log(tnpred), log(df1$tn-df1$dtn))
             abline(0,1)
-            cat("Internal RMS:", rmsout(log(tnpred), log(df1$tn)), "\n")
+            cat("Internal RMS:", rmsout(log(tnpred), log(df1$tn-df1$dtn)), "\n")
 
             return(varout)
         }
@@ -219,9 +214,10 @@ tnmod <- function(df1, matout = NULL,varout = NULL,
         }
     }
 
-    print("here")
+
     tnpred <- gettn(df1, varout)
-    print(summary(tnpred))
+
+    cat("Internal RMS:", rmsout(log(tnpred), log(df1$tn-df1$dtn)), "\n")
     stop()
 
     print(quantile(exp(varout$mud[,1] - varout$k[,1]*log(mn.val["chl"]) +
@@ -301,7 +297,7 @@ tnmod <- function(df1, matout = NULL,varout = NULL,
     return()
 
 }
-#varout.mon.d1T.d20 <- tnmod(moi3.all, runmod = T, xvalid = F)
+#varout.mon.d10.d2T <- tnmod(moi3.all, runmod = T, xvalid = F)
 #matout.mon.d1T.d2Tv <- tnmod(moi3.all, runmod = T, xvalid = T)
 tnmod(moi3.all, matout = matout.mon.d1T.d20,
       varout = varout.mon.d1T.d20, runmod = F, xvalid = F)
