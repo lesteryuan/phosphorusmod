@@ -200,17 +200,14 @@ ntumodel <- function(df1, varout = NULL, varout.mo = NULL,
     muk <- mean(varout$muk)
 ##    d1a <- apply(varout$d1a, 2, mean)  ## loaded from the file
     d2 <- apply(varout$d2, 2, mean)
-    predout <- exp(d1a) + exp(d2[df1$seasnum])*df1$chl.sc^muk
+    predout <- exp(d1a) + exp(mud[2])*df1$chl.sc^muk
     plot(log(predout), log(df1$tp.sc))
     abline(0,1)
 
     print(quantile(exp(varout$mud[,2] - varout$muk*log(chlsc) + log(tpsc)),
                        prob = credint))
     print(quantile(varout$muk, prob = credint))
-    for (i in 1:5) {
-        print(quantile(exp(varout$d2[,i] - varout$muk*log(chlsc) + log(tpsc)),
-                       prob = credint))
-    }
+
     d1 <- apply(varout$d1, 2, mean)
     ip <- which(d1 == min(d1))
     dftemp <- unique.data.frame(df1[, c("econum", "us.l3code")])
@@ -265,6 +262,11 @@ ntumodel <- function(df1, varout = NULL, varout.mo = NULL,
     predout1 <- matrix(NA, ncol = 3, nrow = length(x))
     predout2 <- matrix(NA, ncol = 3, nrow = length(x))
     ns1 <- nrow(varout.mo.n$mud)
+
+    print("***TN coefs***")
+    print(quantile(varout.n$muk,prob = credint))
+    print(quantile(exp(varout.n$mud[,1] - varout.n$muk*log(chlsc) + log(tnsc)),
+          prob = credint))
 
     for (i in 1:length(x)) {
 #        y <- rnorm(ns1, mean = varout.n$mud[,1], sd =varout.n$sigd[,1]) +

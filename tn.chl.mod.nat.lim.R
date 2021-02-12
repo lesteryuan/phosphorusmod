@@ -76,6 +76,12 @@ tn.model <- function(df1, varout = NULL, varout.mo = NULL, runmod = F) {
     seasfac <- cut(df1$yday.x, xcut, include.lowest = T)
     df1$seasnum <- as.numeric(seasfac)
 
+    ## make chl factor for DOC model
+    cutp <- quantile(df1$chl.sc, prob = seq(0, 1, length = 21))
+    cutf <- cut(df1$chl.sc, cutp, include.lowest = T)
+    df1$chlfac <- as.numeric(cutf)
+    print(table(df1$chlfac))
+
     tnchldat <- df1[, c("chl", "chl.sc", "tkn", "doc.sc", "doc.result",
                         "statenum", "state", "ntl.result", "tn.sc",
                         "no3no2.result", "nox.sc", "index.lat.dd",
@@ -89,7 +95,9 @@ tn.model <- function(df1, varout = NULL, varout.mo = NULL, runmod = F) {
                     doc = df1$doc.sc,
                     chl = df1$chl.sc,
                     nseas = max(df1$seasnum),
-                    seasnum = df1$seasnum)
+                    seasnum = df1$seasnum,
+                    chlnum = df1$chlfac
+                    nchl = max(df1$chlfac))
 
     print(str(datstan))
 
@@ -104,14 +112,16 @@ tn.model <- function(df1, varout = NULL, varout.mo = NULL, runmod = F) {
             vector[n] doc;       // scaled DOC
             int nseas;
             int seasnum[n];
+            int nchl;
+            int chlnum[n];
         }
         parameters {
             real muk;                // mean value of exponent on chl
             real mud[2];              // mean value of model coefficients
             real<lower = 0> sigd[3]; // SD of model coefficients among ecoregions
             vector[nseas] etad1;
-            vector[neco] etad2;
-            vector[n] etad2a;
+            vector[nchl] etad2;
+//            vector[n] etad2a;
 
             real<lower = 0> sigtn;  // measurement error of tn
             real muu;
