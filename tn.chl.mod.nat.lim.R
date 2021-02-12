@@ -3,7 +3,7 @@
 
 tn.model <- function(df1, varout = NULL, varout.mo = NULL, runmod = F) {
     require(rstan)
-    nchains <- 6    # number of chains
+    nchains <- 3    # number of chains
 
     ecosel <- 65              # pick ecoregion
     chltarg <- 10             # pick chl target
@@ -92,8 +92,8 @@ tn.model <- function(df1, varout = NULL, varout.mo = NULL, runmod = F) {
                     neco = max(df1$econum),econum = df1$econum,
                     tn = log(df1$tn.sc - df1$nox.sc),
                     nox = log(df1$nox.sc),
-                    doc = df1$doc.sc,
-                    chl = df1$chl.sc,
+                    doc = log(df1$doc.sc),
+                    chl = log(df1$chl.sc),
                     nseas = max(df1$seasnum),
                     seasnum = df1$seasnum,
                     chlnum = df1$chlfac
@@ -118,10 +118,10 @@ tn.model <- function(df1, varout = NULL, varout.mo = NULL, runmod = F) {
         parameters {
             real muk;                // mean value of exponent on chl
             real mud[2];              // mean value of model coefficients
-            real<lower = 0> sigd[3]; // SD of model coefficients among ecoregions
-            vector[nseas] etad1;
-            vector[nchl] etad2;
-//            vector[n] etad2a;
+            real<lower = 0> sigd[2]; // SD of model coefficients among ecoregions
+        //    vector[nseas] etad1;
+            vector[neco] etad2;
+            vector[n] etad2a;
 
             real<lower = 0> sigtn;  // measurement error of tn
             real muu;
@@ -130,24 +130,25 @@ tn.model <- function(df1, varout = NULL, varout.mo = NULL, runmod = F) {
 
         }
         transformed parameters {
-            vector[nseas] d1;
+      //      vector[nseas] d1;
             vector[neco] d2;
             vector[n] d2a;
             vector[n] u;
 
-            d1 = mud[1] + sigd[1]*etad1;
-            d2 = mud[2] + sigd[2]*etad2;
-            d2a = d2[econum] + sigd[3]*etad2a;
+      //      d1 = mud[1] + sigd[1]*etad1;
+            d2 = mud[2] + sigd[1]*etad2;
+            d2a = d2[econum] + sigd[2]*etad2a;
 
             u = muu + etau*sigu;
         }
         model {
+            matrix[n,3] temp;
             vector[n] tnmean;
             muk ~ normal(1,1);    // small amount of information for k
             mud ~ normal(0,4);
             sigd ~ cauchy(0,4);
 
-            etad1 ~ normal(0,1);
+//            etad1 ~ normal(0,1);
             etad2 ~ normal(0,1);
             etad2a ~ normal(0,1);
 
@@ -159,11 +160,14 @@ tn.model <- function(df1, varout = NULL, varout.mo = NULL, runmod = F) {
             sigtn ~ normal(0.1, 0.002);
            // Eqn 34
 
-           for (i in 1:n) tnmean[i] =
-                                 exp(d1[seasnum[i]])*chl[i]^muk +
-                                 exp(d2a[i])*doc[i] + exp(u[i]);
+           temp[,1] = mud[1] + muk*chl;
+           temp[,2] = d2a + doc;
+           temp[,3] = u;
+           for (i in 1:n) tnmean[i] = log_sum_exp(temp[i,]);
+//                                 exp(d1[seasnum[i]])*chl[i]^muk +
+//                                 exp(d2a[i])*doc[i] + exp(u[i]);
 
-            tn ~ student_t(4,log(tnmean), sigtn);
+            tn ~ student_t(4,tnmean, sigtn);
         }
     '
     if (runmod) {
@@ -183,31 +187,15 @@ tn.model <- function(df1, varout = NULL, varout.mo = NULL, runmod = F) {
     d2 <- apply(varout$d2, 2, mean)
 
     muk <- mean(varout$muk)
-    d1 <- apply(varout$d1, 2, mean)
     u <- apply(varout$u, 2, mean)
 
-    dev.new()
-    par(mar = c(4,4,1,1), mfrow = c(1,2))
-    plot(log(df1$chl.sc), log(df1$tn.sc - df1$nox.sc))
-    incvec <- u > 0
-    points(log(df1$chl.sc)[incvec], log(df1$tn.sc - df1$nox.sc)[incvec],
-           pch = 16, col = "red")
-    plot(log(df1$doc.sc), log(df1$tn.sc - df1$nox.sc))
-    points(log(df1$doc.sc)[incvec], log(df1$tn.sc - df1$nox.sc)[incvec],
-           pch = 16, col ="red")
-    abline(-2, 1)
-    abline(3,1)
-#    plot(u, log(df1$tn.sc - df1$nox.sc))
-
-
-    stop()
-
-    predout.n <- exp(d1[df1$seasnum])*df1$chl.sc^muk +
+    predout.n <- exp(mud[1])*df1$chl.sc^muk +
         exp(d2a)*df1$doc.sc + exp(u)
-    plot(log(predout.n), log(df1$tn.sc - df1$nox.sc))
+    plot(log(predout.n), log(df1$tn.sc - df1$nox.sc) - log(predout.n))
     rms <- sqrt(sum((log(predout.n)- log(df1$tn.sc - df1$nox.sc))^2)/
                     nrow(df1))
     cat("RMS:", rms, "\n")
+    stop()
     print(quantile(varout$muk, probs = credint))
     for (i in 1:5) {
         print(quantile(exp(varout$d1[,i] - varout$muk*log(chlsc) + log(tnsc)),
@@ -482,11 +470,10 @@ tn.model <- function(df1, varout = NULL, varout.mo = NULL, runmod = F) {
 }
 
 ## save extracted variables to varout to post-process
-fitout <- tn.model(dat.merge.all, runmod = T)
+#fitout <- tn.model(dat.merge.all, runmod = T)
 
-varout.n.limnat <- extract(fitout, pars = c("u",
-                                       "muk", "mud", "d1", "d2",
-                                       "d2a", "sigd", "u", "muu"))
+#varout.n.limnat <- extract(fitout, pars = c("u","muk", "mud",  "d2",
+#                                       "d2a", "sigd", "u", "muu"))
 
 tn.model(dat.merge.all, varout = varout.n.limnat, varout.mo = varout.mon.d1T.d2Lv,
          runmod = F)
