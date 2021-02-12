@@ -215,15 +215,12 @@ ntumodel <- function(df1, varout = NULL, varout.mo = NULL,
     ip <- which(d1 == min(d1))
     dftemp <- unique.data.frame(df1[, c("econum", "us.l3code")])
     dftemp <- dftemp[order(dftemp$econum),]
-    print(dftemp[ip,])
 
     ip <- which(d1 == max(d1))
-    print(dftemp[ip,])
-    print(range(exp(d1 + log(tpsc))))
-
 
     png(width = 6, height = 2.5, pointsize = 6, units = "in", res = 600,
         file = "nla.mo.comp.png")
+#    dev.new()
     par(mar = c(4,4,1,1), mgp = c(2.3,1,0), bty = "l", mfrow = c(1,2))
     plot(log(df1$chl), log(df1$ptl.result),
          xlab = expression(Chl~(mu*g/L)),
@@ -242,12 +239,12 @@ ntumodel <- function(df1, varout = NULL, varout.mo = NULL,
     nsamp <- nrow(varout$mud)
 
     for (i in 1:length(x)) {
-#        y <- varout$mud[,3] - varout$muk[,3]*log(chlsc) +
-#            varout$muk[,3]*x[i]
-        y <-  rnorm(nsamp, mean = varout$mud[,2], sd = varout$sigd[,2]) +
+#        y <-  rnorm(nsamp, mean = varout$mud[,2], sd = varout$sigd[,2]) +
+#            varout$muk*(x[i] - log(chlsc)) + log(tpsc)
+        y <-  varout$mud[,2] +
             varout$muk*(x[i] - log(chlsc)) + log(tpsc)
 
-        y2 <- varout.mo$d1[,4] +
+        y2 <- varout.mo$mud[,1] +
             varout.mo$k[,2]*(x[i] - log(mn.val["chl"])) +
                 log(mn.val["tp"])
 
@@ -260,8 +257,8 @@ ntumodel <- function(df1, varout = NULL, varout.mo = NULL,
     lines(x, predout[,1])
     lines(x, predout[,3])
 
-    d1.mo <- apply(varout.mo.n$d1, 2, mean)
-    k.mo <- apply(varout.mo.n$k, 2, mean)
+#    d1.mo <- apply(varout.mo.n$d1, 2, mean)
+#    k.mo <- apply(varout.mo.n$k, 2, mean)
     load("mn.val.tnmo.rda")
     load("tnsc.rda")
 
@@ -270,10 +267,12 @@ ntumodel <- function(df1, varout = NULL, varout.mo = NULL,
     ns1 <- nrow(varout.mo.n$mud)
 
     for (i in 1:length(x)) {
-        y <- rnorm(ns1, mean = varout.n$mud[,1], sd =varout.n$sigd[,1]) +
+#        y <- rnorm(ns1, mean = varout.n$mud[,1], sd =varout.n$sigd[,1]) +
+#            varout.n$muk*(x[i]-log(chlsc)) + log(tnsc)
+        y <- varout.n$mud[,1] +
             varout.n$muk*(x[i]-log(chlsc)) + log(tnsc)
         predout1[i,] <- quantile(y, prob = credint)
-        y2 <- varout.mo.n$d1[,4] + varout.mo.n$k[,1]*(x[i] - log(mn.val["chl"])) +
+        y2 <- varout.mo.n$mud[,1] + varout.mo.n$k[,1]*(x[i] - log(mn.val["chl"])) +
             log(mn.val["tn"]) + log(1000)
         predout2[i,] <- quantile(y2, prob = credint)
     }
@@ -289,6 +288,7 @@ ntumodel <- function(df1, varout = NULL, varout.mo = NULL,
 
     lines(x, predout1[,1])
     lines(x, predout1[,3])
+
     dev.off()
 
 
@@ -304,9 +304,9 @@ ntumodel <- function(df1, varout = NULL, varout.mo = NULL,
 #varout.p.limnat <- extract(fitout, pars = c("muk", "mud", "sigd", "d1", "d2", "d1a"))
 
 ntumodel(dat.merge.all, varout = varout.p.limnat,
-         varout.mo = varout.mo.d1T.d2L,
+         varout.mo = varout.mo.d10.d2L,
          varout.n = varout.n.limnat,
-         varout.mo.n = varout.mon.d1T.d2Lv,
+         varout.mo.n = varout.mon.d10.d2T,
          runmod = F)
 
 

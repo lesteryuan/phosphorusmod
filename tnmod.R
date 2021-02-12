@@ -133,8 +133,8 @@ tnmod <- function(df1, matout = NULL,varout = NULL,
             u[u <= 0] <- 0
         }
 
-        tnpred <- exp(d1[df$seasnum])*df$chl^k[1] +
-            exp(mud[2])*u^k[2]
+        tnpred <- exp(mud[1])*df$chl^k[1] +
+            exp(d2[df$lakenum])*u^k[2]
         return(tnpred)
     }
     extractvars <- c("mud", "k", "u", "mub", "d1", "d2", "sigd")
@@ -300,4 +300,4 @@ tnmod <- function(df1, matout = NULL,varout = NULL,
 #varout.mon.d10.d2T <- tnmod(moi3.all, runmod = T, xvalid = F)
 #matout.mon.d1T.d2Tv <- tnmod(moi3.all, runmod = T, xvalid = T)
 tnmod(moi3.all, matout = matout.mon.d1T.d20,
-      varout = varout.mon.d1T.d20, runmod = F, xvalid = F)
+      varout = varout.mon.d10.d2L, runmod = F, xvalid = F)
