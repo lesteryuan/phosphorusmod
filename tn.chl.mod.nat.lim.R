@@ -96,7 +96,7 @@ tn.model <- function(df1, varout = NULL, varout.mo = NULL, runmod = F) {
                     chl = log(df1$chl.sc),
                     nseas = max(df1$seasnum),
                     seasnum = df1$seasnum,
-                    chlnum = df1$chlfac
+                    chlnum = df1$chlfac,
                     nchl = max(df1$chlfac))
 
     print(str(datstan))
@@ -118,10 +118,9 @@ tn.model <- function(df1, varout = NULL, varout.mo = NULL, runmod = F) {
         parameters {
             real muk;                // mean value of exponent on chl
             real mud[2];              // mean value of model coefficients
-            real<lower = 0> sigd[2]; // SD of model coefficients among ecoregions
-        //    vector[nseas] etad1;
-            vector[neco] etad2;
-            vector[n] etad2a;
+            real<lower = 0> sigd; // SD of model coefficients among ecoregions
+            vector[nchl] etad2;
+        //    vector[n] etad2a;
 
             real<lower = 0> sigtn;  // measurement error of tn
             real muu;
@@ -130,42 +129,36 @@ tn.model <- function(df1, varout = NULL, varout.mo = NULL, runmod = F) {
 
         }
         transformed parameters {
-      //      vector[nseas] d1;
-            vector[neco] d2;
-            vector[n] d2a;
+
+            vector[nchl] d2;
+//            vector[n] d2a;
             vector[n] u;
 
-      //      d1 = mud[1] + sigd[1]*etad1;
-            d2 = mud[2] + sigd[1]*etad2;
-            d2a = d2[econum] + sigd[2]*etad2a;
+            d2 = mud[2] + sigd*etad2;
+//            d2a = d2[econum] + sigd[2]*etad2a;
 
             u = muu + etau*sigu;
         }
         model {
             matrix[n,3] temp;
             vector[n] tnmean;
+
             muk ~ normal(1,1);    // small amount of information for k
             mud ~ normal(0,4);
             sigd ~ cauchy(0,4);
-
-//            etad1 ~ normal(0,1);
             etad2 ~ normal(0,1);
-            etad2a ~ normal(0,1);
+//            etad2a ~ normal(0,1);
 
             muu ~ normal(0,3);
             etau ~ normal(0,1);
-
             sigu ~ cauchy(0,3);
 
             sigtn ~ normal(0.1, 0.002);
-           // Eqn 34
 
            temp[,1] = mud[1] + muk*chl;
-           temp[,2] = d2a + doc;
+           temp[,2] = d2[chlnum] + doc;
            temp[,3] = u;
            for (i in 1:n) tnmean[i] = log_sum_exp(temp[i,]);
-//                                 exp(d1[seasnum[i]])*chl[i]^muk +
-//                                 exp(d2a[i])*doc[i] + exp(u[i]);
 
             tn ~ student_t(4,tnmean, sigtn);
         }
@@ -470,10 +463,10 @@ tn.model <- function(df1, varout = NULL, varout.mo = NULL, runmod = F) {
 }
 
 ## save extracted variables to varout to post-process
-#fitout <- tn.model(dat.merge.all, runmod = T)
+fitout <- tn.model(dat.merge.all, runmod = T)
 
 #varout.n.limnat <- extract(fitout, pars = c("u","muk", "mud",  "d2",
 #                                       "d2a", "sigd", "u", "muu"))
 
-tn.model(dat.merge.all, varout = varout.n.limnat, varout.mo = varout.mon.d1T.d2Lv,
-         runmod = F)
+#tn.model(dat.merge.all, varout = varout.n.limnat, varout.mo = varout.mon.d1T.d2Lv,
+#         runmod = F)
