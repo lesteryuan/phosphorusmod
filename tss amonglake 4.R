@@ -398,7 +398,7 @@ tss.explore <- function(df1, matout = NULL,varout = NULL, varout.n = NULL,
     }
     print(min(predout[,3]))
     print(max(predout[,1]))
-    stop()
+
     png(width = 3, height = 2, pointsize = 6, units ="in", res = 600,
         file = "np.png")
     par(mar = c(4,4,1,1), mgp = c(2.3,1,0))
@@ -477,4 +477,4 @@ tss.explore <- function(df1, matout = NULL,varout = NULL, varout.n = NULL,
 #matout.mo.d1T.d2L.4 <-  tss.explore(moi3.all, runmod = T, xvalid= T)
 
 tss.explore(moi3.all, matout = matout.mo.d10.d2L, varout = varout.mo.d10.d2L,
-            varout.n = varout.mon.d10.d2T,runmod = F, xvalid = F)
+            varout.n = varout.test,runmod = F, xvalid = F)

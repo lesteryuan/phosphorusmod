@@ -45,6 +45,7 @@ tnmod <- function(df1, matout = NULL,varout = NULL,
 
     df1 <- df1[!incvec,]
 
+
        modstan <- '
         data {
             int n;
@@ -112,7 +113,7 @@ tnmod <- function(df1, matout = NULL,varout = NULL,
             sigtn ~ cauchy(0,3);
 
             tss ~ student_t(4,tss_mn, sigtss);
-            tn ~ student_t(4,tn_mn, sigtn);
+            tn ~ normal(tn_mn, sigtn);
         }
     '
     rmsout <- function(x,y) sqrt(sum((x-y)^2, na.rm = T)/
@@ -215,6 +216,33 @@ tnmod <- function(df1, matout = NULL,varout = NULL,
     }
 
 
+    dev.new()
+    plot(log(dat.merge.all$chl), log(dat.merge.all$ntl.result -
+                                         dat.merge.all$no3no2.result),
+         col = "grey")
+    points(log(df1$chl*mn.val["chl"]), log(1000*(df1$tn-df1$dtn)*mn.val["tn"]),
+           pch = 16, cex = 0.5)
+    stop()
+
+    dftemp <- df1
+    dftemp <- dftemp[dftemp$doc > 0.5,]
+
+    cutp <- quantile(dftemp$chl, prob = seq(0, 1, length = 6))
+    cutf <- cut(dftemp$chl, cutp, include.lowest = T)
+    dflist <- split(dftemp, cutf)
+    dev.new()
+    par(mar = c(4,4,1,1), mfrow = c(2,3))
+    plot(log(dftemp$doc), log(dftemp$don), col = "grey")
+    for (i in 1:length(dflist)) {
+
+#        points(log(dflist[[i]]$doc), log(dflist[[i]]$don), pch = 16, col = "blue")
+        mod <- lm(log(dflist[[i]]$don) ~ log(dflist[[i]]$doc))
+        print(summary(mod))
+        abline(mod)
+    }
+    stop()
+
+
     tnpred <- gettn(df1, varout)
 
     cat("Internal RMS:", rmsout(log(tnpred), log(df1$tn-df1$dtn)), "\n")
@@ -297,7 +325,7 @@ tnmod <- function(df1, matout = NULL,varout = NULL,
     return()
 
 }
-#varout.mon.d10.d2T <- tnmod(moi3.all, runmod = T, xvalid = F)
+varout.test<- tnmod(moi3.all, runmod = T, xvalid = F)
 #matout.mon.d1T.d2Tv <- tnmod(moi3.all, runmod = T, xvalid = T)
-tnmod(moi3.all, matout = matout.mon.d1T.d20,
-      varout = varout.mon.d10.d2L, runmod = F, xvalid = F)
+#tnmod(moi3.all, matout = matout.mon.d1T.d20,
+#      varout = varout.mon.d10.d2L, runmod = F, xvalid = F)

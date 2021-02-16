@@ -77,10 +77,17 @@ tn.model <- function(df1, varout = NULL, varout.mo = NULL, runmod = F) {
     df1$seasnum <- as.numeric(seasfac)
 
     ## make chl factor for DOC model
-    cutp <- quantile(df1$chl.sc, prob = seq(0, 1, length = 21))
+    cutp <- quantile(df1$chl.sc, prob = seq(0, 1, length = 7))
     cutf <- cut(df1$chl.sc, cutp, include.lowest = T)
     df1$chlfac <- as.numeric(cutf)
     print(table(df1$chlfac))
+
+    ## calculate priors from MO model
+    b0 <- exp(-2.107115)
+    load("mn.val.mo.rda")
+    k0 <- 0.8484
+    b1 <- b0*(chlsc/mn.val["chl"])^k0*(mn.val["tn"]*1000/tnsc)
+    print(log(b1))
 
     tnchldat <- df1[, c("chl", "chl.sc", "tkn", "doc.sc", "doc.result",
                         "statenum", "state", "ntl.result", "tn.sc",
@@ -117,6 +124,8 @@ tn.model <- function(df1, varout = NULL, varout.mo = NULL, runmod = F) {
         }
         parameters {
             real muk;                // mean value of exponent on chl
+
+
             real mud[2];              // mean value of model coefficients
             real<lower = 0> sigd; // SD of model coefficients among ecoregions
             vector[nchl] etad2;
@@ -135,6 +144,7 @@ tn.model <- function(df1, varout = NULL, varout.mo = NULL, runmod = F) {
             vector[n] u;
 
             d2 = mud[2] + sigd*etad2;
+
 //            d2a = d2[econum] + sigd[2]*etad2a;
 
             u = muu + etau*sigu;
@@ -143,8 +153,13 @@ tn.model <- function(df1, varout = NULL, varout.mo = NULL, runmod = F) {
             matrix[n,3] temp;
             vector[n] tnmean;
 
-            muk ~ normal(1,1);    // small amount of information for k
-            mud ~ normal(0,4);
+//            mud ~ normal(0,4);
+
+            mud[1] ~ normal(-2.0796, 0.08);
+            muk ~ normal(0.8484, 0.057);
+
+            mud[2] ~ normal(0,4);
+
             sigd ~ cauchy(0,4);
             etad2 ~ normal(0,1);
 //            etad2a ~ normal(0,1);
@@ -463,7 +478,7 @@ tn.model <- function(df1, varout = NULL, varout.mo = NULL, runmod = F) {
 }
 
 ## save extracted variables to varout to post-process
-fitout <- tn.model(dat.merge.all, runmod = T)
+#fitout <- tn.model(dat.merge.all, runmod = T)
 
 #varout.n.limnat <- extract(fitout, pars = c("u","muk", "mud",  "d2",
 #                                       "d2a", "sigd", "u", "muu"))

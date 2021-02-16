@@ -302,7 +302,7 @@ ntumodel <- function(df1, varout = NULL, varout.mo = NULL,
 #varout.p.limnat <- extract(fitout, pars = c("muk", "mud", "sigd", "d1", "d1a"))
 
 ntumodel(dat.merge.all, varout = varout.p.limnat,varout.mo = varout.mo.d10.d2L,
-         varout.n = varout.n.limnat,varout.mo.n = varout.mon.d10.d2T,
+         varout.n = varout.n.limnat,varout.mo.n = varout.test,
          runmod = F)
 
 
