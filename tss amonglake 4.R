@@ -329,6 +329,10 @@ tss.explore <- function(df1, matout = NULL,varout = NULL, varout.n = NULL,
     print("*** volatile suspended sediment N ***")
     print(quantile(exp(varout.n$mud[,2] - varout.n$k[,2]*log(mn.val["tss"]) +
                            log(mn.val["tn"]*1000)), prob = credint))
+    d2n <- apply(varout.n$d2, 2, mean)
+    print(range(exp(d2n - varout.n$k[,2]*log(mn.val["tss"]) +
+                        log(mn.val["tn"]*1000))))
+    stop()
 
 
     print(quantile(varout.n$k[,2], prob = credint))
@@ -477,4 +481,4 @@ tss.explore <- function(df1, matout = NULL,varout = NULL, varout.n = NULL,
 #matout.mo.d1T.d2L.4 <-  tss.explore(moi3.all, runmod = T, xvalid= T)
 
 tss.explore(moi3.all, matout = matout.mo.d10.d2L, varout = varout.mo.d10.d2L,
-            varout.n = varout.test,runmod = F, xvalid = F)
+            varout.n = varout.mon.d10.d2T,runmod = F, xvalid = F)

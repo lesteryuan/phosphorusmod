@@ -128,7 +128,7 @@ tn.model <- function(df1, varout = NULL, varout.mo = NULL, runmod = F) {
 
             real mud[2];              // mean value of model coefficients
             real<lower = 0> sigd; // SD of model coefficients among ecoregions
-            vector[nchl] etad2;
+            vector[neco] etad2;
         //    vector[n] etad2a;
 
             real<lower = 0> sigtn;  // measurement error of tn
@@ -139,7 +139,7 @@ tn.model <- function(df1, varout = NULL, varout.mo = NULL, runmod = F) {
         }
         transformed parameters {
 
-            vector[nchl] d2;
+            vector[neco] d2;
 //            vector[n] d2a;
             vector[n] u;
 
@@ -153,12 +153,8 @@ tn.model <- function(df1, varout = NULL, varout.mo = NULL, runmod = F) {
             matrix[n,3] temp;
             vector[n] tnmean;
 
-//            mud ~ normal(0,4);
-
-            mud[1] ~ normal(-2.0796, 0.08);
-            muk ~ normal(0.8484, 0.057);
-
-            mud[2] ~ normal(0,4);
+            mud ~ normal(0,4);
+            muk ~ normal(1,1);
 
             sigd ~ cauchy(0,4);
             etad2 ~ normal(0,1);
@@ -171,7 +167,7 @@ tn.model <- function(df1, varout = NULL, varout.mo = NULL, runmod = F) {
             sigtn ~ normal(0.1, 0.002);
 
            temp[,1] = mud[1] + muk*chl;
-           temp[,2] = d2[chlnum] + doc;
+           temp[,2] = d2[econum] + doc;
            temp[,3] = u;
            for (i in 1:n) tnmean[i] = log_sum_exp(temp[i,]);
 
