@@ -297,13 +297,13 @@ ntumodel <- function(df1, varout = NULL, varout.mo = NULL,
 
 ## runmod variable set to T to run simulation and set to F to
 ##  run post processing.
-#fitout <- ntumodel(dat.merge.all, runmod = T)
+fitout <- ntumodel(dat.merge.all, runmod = T)
 ## post processing
-#varout.p.limnat <- extract(fitout, pars = c("muk", "mud", "sigd", "d1", "d1a"))
+varout.p.limnat <- extract(fitout, pars = c("muk", "mud", "sigd", "d1", "d1a"))
 
-ntumodel(dat.merge.all, varout = varout.p.limnat,varout.mo = varout.mo.d10.d2L,
-         varout.n = varout.n.limnat,varout.mo.n = varout.test,
-         runmod = F)
+#ntumodel(dat.merge.all, varout = varout.p.limnat,varout.mo = varout.mo.d10.d2L,
+#         varout.n = varout.n.limnat,varout.mo.n = varout.test,
+#         runmod = F)
 
 
 

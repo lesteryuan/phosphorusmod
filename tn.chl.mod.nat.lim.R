@@ -127,9 +127,9 @@ tn.model <- function(df1, varout = NULL, varout.mo = NULL, runmod = F) {
 
 
             real mud[2];              // mean value of model coefficients
-            real<lower = 0> sigd; // SD of model coefficients among ecoregions
+            real<lower = 0> sigd[2]; // SD of model coefficients among ecoregions
             vector[neco] etad2;
-        //    vector[n] etad2a;
+            vector[n] etad2a;
 
             real<lower = 0> sigtn;  // measurement error of tn
             real muu;
@@ -140,12 +140,12 @@ tn.model <- function(df1, varout = NULL, varout.mo = NULL, runmod = F) {
         transformed parameters {
 
             vector[neco] d2;
-//            vector[n] d2a;
+            vector[n] d2a;
             vector[n] u;
 
-            d2 = mud[2] + sigd*etad2;
+            d2 = mud[2] + sigd[1]*etad2;
 
-//            d2a = d2[econum] + sigd[2]*etad2a;
+            d2a = d2[econum] + sigd[2]*etad2a;
 
             u = muu + etau*sigu;
         }
@@ -158,7 +158,7 @@ tn.model <- function(df1, varout = NULL, varout.mo = NULL, runmod = F) {
 
             sigd ~ cauchy(0,4);
             etad2 ~ normal(0,1);
-//            etad2a ~ normal(0,1);
+            etad2a ~ normal(0,1);
 
             muu ~ normal(0,3);
             etau ~ normal(0,1);
@@ -167,7 +167,7 @@ tn.model <- function(df1, varout = NULL, varout.mo = NULL, runmod = F) {
             sigtn ~ normal(0.1, 0.002);
 
            temp[,1] = mud[1] + muk*chl;
-           temp[,2] = d2[econum] + doc;
+           temp[,2] = d2a + doc;
            temp[,3] = u;
            for (i in 1:n) tnmean[i] = log_sum_exp(temp[i,]);
 
@@ -199,7 +199,7 @@ tn.model <- function(df1, varout = NULL, varout.mo = NULL, runmod = F) {
     rms <- sqrt(sum((log(predout.n)- log(df1$tn.sc - df1$nox.sc))^2)/
                     nrow(df1))
     cat("RMS:", rms, "\n")
-    stop()
+
     print(quantile(varout$muk, probs = credint))
     for (i in 1:5) {
         print(quantile(exp(varout$d1[,i] - varout$muk*log(chlsc) + log(tnsc)),
@@ -209,7 +209,6 @@ tn.model <- function(df1, varout = NULL, varout.mo = NULL, runmod = F) {
     d2 <- apply(varout$d2,2, mean)
     print(range(exp(d2 - log(docsc) + log(tnsc))))
     print(range(exp(u + log(tnsc))))
-    stop()
 
 
     rmsout <- function(x, y) sqrt(sum((x-y)^2)/length(x))
@@ -476,8 +475,9 @@ tn.model <- function(df1, varout = NULL, varout.mo = NULL, runmod = F) {
 ## save extracted variables to varout to post-process
 #fitout <- tn.model(dat.merge.all, runmod = T)
 
-#varout.n.limnat <- extract(fitout, pars = c("u","muk", "mud",  "d2",
-#                                       "d2a", "sigd", "u", "muu"))
+varout.n.limnat <- extract(fitout, pars = c("u","muk", "mud",  "d2", "d2a",
+                                       "sigd", "u", "muu"))
 
-#tn.model(dat.merge.all, varout = varout.n.limnat, varout.mo = varout.mon.d1T.d2Lv,
-#         runmod = F)
+tn.model(dat.merge.all, varout = varout.n.limnat,
+         varout.mo = varout.mon.d10.d2T,
+         runmod = F)
