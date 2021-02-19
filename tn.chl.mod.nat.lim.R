@@ -183,6 +183,13 @@ tn.model <- function(df1, varout = NULL, varout.mo = NULL, runmod = F) {
         return(fit)
     }
 
+    d.n <- apply(varout$d2, 2, mean)
+    df.n <- data.frame(econum = 1:length(d.n), d.n = as.vector(d.n))
+    dftemp <- unique.data.frame(df1[, c("econum", "us.l3code")])
+    df.n <- merge(df.n, dftemp, by = "econum")
+    save(df.n, file = "df.n.rda")
+    stop()
+
 
     credint <- c(0.025, 0.5, 0.975)
     grey.t <- adjustcolor("grey39", alpha.f = 0.5)
@@ -475,8 +482,8 @@ tn.model <- function(df1, varout = NULL, varout.mo = NULL, runmod = F) {
 ## save extracted variables to varout to post-process
 #fitout <- tn.model(dat.merge.all, runmod = T)
 
-varout.n.limnat <- extract(fitout, pars = c("u","muk", "mud",  "d2", "d2a",
-                                       "sigd", "u", "muu"))
+#varout.n.limnat <- extract(fitout, pars = c("u","muk", "mud",  "d2", "d2a",
+#                                       "sigd", "u", "muu"))
 
 tn.model(dat.merge.all, varout = varout.n.limnat,
          varout.mo = varout.mon.d10.d2T,

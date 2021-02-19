@@ -62,6 +62,11 @@ tss.explore <- function(df1, matout = NULL,varout = NULL, varout.n = NULL,
     print(summary(df1$tn))
     print(nrow(df1))
 
+    ## simple summary N:P
+    print("TN:TP")
+    print(summary(df1$tn*1000/df1$tp))
+    stop()
+
     varlist<- c("tss", "chl", "tp", "ntu", "tn")
     mn.val <- apply(df1[, varlist],2,function(x) exp(mean(log(x))))
     print(mn.val)
@@ -266,6 +271,7 @@ tss.explore <- function(df1, matout = NULL,varout = NULL, varout.n = NULL,
             return(matall)
         }
     }
+
 
     tp.pred <- gettp(df1, varout, withu = T)[[1]]
     cat("Internal validation:", rmsout(log(tp.pred), log(df1$tp)), "\n")

@@ -187,6 +187,14 @@ ntumodel <- function(df1, varout = NULL, varout.mo = NULL,
         return(fit)
     }
 
+    ## merge ecoregion and depth specific coefficients into main data
+    d.p <- apply(varout$d1, 2, mean)
+    dfd <- data.frame(econum = 1:length(d.p), d.p = as.numeric(d.p))
+    dftemp <- unique.data.frame(df1[, c("econum", "us.l3code")])
+    dfd <- merge(dfd, dftemp, by= "econum")
+    print(dfd)
+    save(dfd, file = "dfd.rda")
+    stop()
 
     ## post processing
     grey.t <- adjustcolor("grey39", alpha.f = 0.5)
@@ -211,9 +219,9 @@ ntumodel <- function(df1, varout = NULL, varout.mo = NULL,
 
     ip <- which(d1 == max(d1))
 
-#    png(width = 6, height = 2.5, pointsize = 6, units = "in", res = 600,
-#        file = "nla.mo.comp.png")
-    dev.new()
+    png(width = 6, height = 2.5, pointsize = 6, units = "in", res = 600,
+        file = "nla.mo.comp.png")
+#    dev.new()
     par(mar = c(4,4,1,1), mgp = c(2.3,1,0), bty = "l", mfrow = c(1,2))
     plot(log(df1$chl), log(df1$ptl.result),
          xlab = expression(Chl~(mu*g/L)),
@@ -286,8 +294,19 @@ ntumodel <- function(df1, varout = NULL, varout.mo = NULL,
 
     lines(x, predout1[,1])
     lines(x, predout1[,3])
-    stop()
+
     dev.off()
+
+    mud.n <- apply(varout.n$mud, 2, mean)
+    k.n <- mean(varout.n$muk)
+    mud.p <- apply(varout$mud, 2, mean)
+    k.p <- mean(varout$muk)
+    chl <- seq(4, 200, length = 50)
+    n.p <- exp(mud.n[1])/exp(mud.p[2])*tnsc/tpsc*(chl/chlsc)^(k.n - k.p)
+    dev.new()
+    plot(log(chl), n.p)
+    print(range(n.p))
+
 
 
 
@@ -297,13 +316,13 @@ ntumodel <- function(df1, varout = NULL, varout.mo = NULL,
 
 ## runmod variable set to T to run simulation and set to F to
 ##  run post processing.
-fitout <- ntumodel(dat.merge.all, runmod = T)
+#fitout <- ntumodel(dat.merge.all, runmod = T)
 ## post processing
-varout.p.limnat <- extract(fitout, pars = c("muk", "mud", "sigd", "d1", "d1a"))
+#varout.p.limnat <- extract(fitout, pars = c("muk", "mud", "sigd", "d1", "d1a"))
 
-#ntumodel(dat.merge.all, varout = varout.p.limnat,varout.mo = varout.mo.d10.d2L,
-#         varout.n = varout.n.limnat,varout.mo.n = varout.test,
-#         runmod = F)
+ntumodel(dat.merge.all, varout = varout.p.limnat,varout.mo = varout.mo.d10.d2L,
+         varout.n = varout.n.limnat,varout.mo.n = varout.mon.d10.d2T,
+         runmod = F)
 
 
 
