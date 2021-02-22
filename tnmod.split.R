@@ -5,7 +5,8 @@
 ## 1.5.2021: TN model
 ## 1.22.2021: Change back to straight particulate matter model
 ## 2.16.2021: Split error for TN
-
+## 2.21.2021: Tried a month specific value for b but it increased
+## the rms error...
 tnmod <- function(df1, matout = NULL,varout = NULL,
                         runmod = T, xvalid = F) {
 
@@ -85,6 +86,8 @@ tnmod <- function(df1, matout = NULL,varout = NULL,
             vector[n] etau;
 
             real mub;
+            real<lower = 0> sigb;
+            vector[nseas] etab;
             real<lower = 0> sigtss;
 
         }
@@ -95,6 +98,9 @@ tnmod <- function(df1, matout = NULL,varout = NULL,
 
             vector[nlake] d1;
             vector[nseas] d2;
+            vector[nseas] b;
+
+            b = mub +  sigb*etab;
 
             d1 = mud[1] + etad1*sigd[1];
             d2 = mud[2] + etad2*sigd[2];
@@ -102,7 +108,7 @@ tnmod <- function(df1, matout = NULL,varout = NULL,
             u = muu + sigu*etau;
 
             for (i in 1:n) {
-                tss_mn[i] = log_sum_exp(mub + k[3]*chl[i], u[i]);
+                tss_mn[i] = log_sum_exp(b[seasnum[i]] + k[3]*chl[i], u[i]);
 
                 tn_mn[i] = log_sum_exp(mud[1]+ k[1]*chl[i],
                         d2[seasnum[i]] + k[2]*u[i]);
@@ -122,6 +128,8 @@ tnmod <- function(df1, matout = NULL,varout = NULL,
             sigu ~ cauchy(0,3);
             sigtss ~ normal(0.1,0.002);
             mub ~ normal(0,3);
+            etab ~ normal(0,1);
+            sigb ~ cauchy(0,3);
 
             sigtn1 ~ cauchy(0,3);
             sigtn2 ~ normal(0.1, 0.01);
@@ -247,6 +255,11 @@ tnmod <- function(df1, matout = NULL,varout = NULL,
     }
 
 
+    tnpred <- gettn(df1, varout)
+
+    cat("Internal RMS:", rmsout(log(tnpred), log(df1$tn-df1$dtn)), "\n")
+    stop()
+
     dev.new()
     plot(log(dat.merge.all$chl), log(dat.merge.all$ntl.result -
                                          dat.merge.all$no3no2.result),
@@ -274,10 +287,6 @@ tnmod <- function(df1, matout = NULL,varout = NULL,
     stop()
 
 
-    tnpred <- gettn(df1, varout)
-
-    cat("Internal RMS:", rmsout(log(tnpred), log(df1$tn-df1$dtn)), "\n")
-    stop()
 
     print(quantile(exp(varout$mud[,1] - varout$k[,1]*log(mn.val["chl"]) +
                            log(mn.val["tn"]*1000)), prob = c(0.05, 0.5, 0.95)))
@@ -356,7 +365,7 @@ tnmod <- function(df1, matout = NULL,varout = NULL,
     return()
 
 }
-varout.mon.d10.d2T <- tnmod(moi3.all, runmod = T, xvalid = F)
+#varout.test <- tnmod(moi3.all, runmod = T, xvalid = F)
 #matout.mon.d10.d2T <- tnmod(moi3.all, runmod = T, xvalid = T)
-#tnmod(moi3.all, matout = matout.mon.d1T.d20,
-#      varout = varout.mon.d10.d2L, runmod = F, xvalid = F)
+tnmod(moi3.all, matout = matout.mon.d1T.d20,
+      varout = varout.mon.d10.d2T, runmod = F, xvalid = F)
