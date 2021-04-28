@@ -72,6 +72,8 @@ tnmod <- function(df1, matout = NULL,varout = NULL,
             vector[n] etau;
 
             real mub;
+            real<lower = 0> sigb;
+            vector[nseas] etab;
             real<lower = 0> sigtss;
 
         }
@@ -80,8 +82,11 @@ tnmod <- function(df1, matout = NULL,varout = NULL,
             vector[n] u;
             vector[n] tss_mn;
 
+            vector[nseas] b;
             vector[nlake] d1;
             vector[nseas] d2;
+
+            b = mub + sigb*etab;
 
             d1 = mud[1] + etad1*sigd[1];
             d2 = mud[2] + etad2*sigd[2];
@@ -89,7 +94,7 @@ tnmod <- function(df1, matout = NULL,varout = NULL,
             u = muu + sigu*etau;
 
             for (i in 1:n) {
-                tss_mn[i] = log_sum_exp(mub + k[3]*chl[i], u[i]);
+                tss_mn[i] = log_sum_exp(b[seasnum[i]] + k[3]*chl[i], u[i]);
 
                 tn_mn[i] = log_sum_exp(mud[1] + k[1]*chl[i],
                         d2[seasnum[i]] + k[2]*u[i]);
@@ -108,7 +113,10 @@ tnmod <- function(df1, matout = NULL,varout = NULL,
             etau ~ normal(0,1);
             sigu ~ cauchy(0,3);
             sigtss ~ normal(0.1,0.002);
+
             mub ~ normal(0,3);
+            etab ~ normal(0,1);
+            sigb ~ cauchy(0,3);
 
             sigtn ~ cauchy(0,3);
 
