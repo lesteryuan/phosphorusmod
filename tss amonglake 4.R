@@ -13,6 +13,7 @@ tss.explore <- function(df1, matout = NULL,varout = NULL, varout.n = NULL,
     df1$chl <- as.numeric(as.character(df1$chl))
     df1$ntu <- as.numeric(as.character(df1$ntu))
     df1$srp <- as.numeric(as.character(df1$srp))
+    df1$don <- as.numeric(as.character(df1$don))
 
     date0 <- strptime(paste(df1$month, df1$day, "2004", sep = "-"),
                       format = "%m-%d-%Y")
@@ -65,7 +66,6 @@ tss.explore <- function(df1, matout = NULL,varout = NULL, varout.n = NULL,
     ## simple summary N:P
     print("TN:TP")
     print(summary(df1$tn*1000/df1$tp))
-    stop()
 
     varlist<- c("tss", "chl", "tp", "ntu", "tn")
     mn.val <- apply(df1[, varlist],2,function(x) exp(mean(log(x))))
@@ -78,7 +78,7 @@ tss.explore <- function(df1, matout = NULL,varout = NULL, varout.n = NULL,
     df1$vss <- df1$vss/mn.val["tss"]
     df1$nvss <- df1$nvss/mn.val["tss"]
     df1$dtn <- df1$dtn/mn.val["tn"]
-
+    df1$don <- df1$don/mn.val["tn"]
 
        modstan <- '
         data {
@@ -281,25 +281,69 @@ tss.explore <- function(df1, matout = NULL,varout = NULL, varout.n = NULL,
     mub <- mean(varout$mub)
     u <- apply(varout$u, 2, mean)
     mud <- apply(varout$mud, 2, mean)
-
-    dev.new()
     d2 <- apply(varout$d2, 2, mean)
-    dev.new()
-    par(mar = c(4,4,1,1), mfrow = c(4,4), mgp = c(2.3,1,0))
-    for (i in 1:15) {
-        incvec <- df1$lakenum == i
-        plot(u, log(df1$tp-df1$dtp),type = "n")
-        points( u[incvec], log(df1$tp-df1$dtp)[incvec])
-        abline(d2[i], k[3])
-        abline(mud[2], k[3], lty = "dashed")
-    }
+
+    psed <- u*k[3] + d2[df1$lakenum]
+    prop.sed <- exp(psed - log(df1$tp))
+    print(summary(prop.sed))
+    stop()
+
+    ## plot dtp vs. chl, dtn vs. chl
+    png(width = 6, height = 2.5, pointsize = 6, units = "in",
+        res = 600, file = "dissolved.png")
+    par(mar = c(4,4,1,1), mfrow = c(1,2), mgp = c(2.3,1,0))
+    incvec <- log(df1$dtp*mn.val["tp"]) > 0.5 # one outlier
+    plot(log(df1$chl*mn.val["chl"])[incvec], log(df1$dtp*mn.val["tp"])[incvec],
+         pch = 21, col = "grey39", bg = "white",
+         ylab = expression(P[diss]~(mu*g/L)),
+         xlab = expression(Chl~(mu*g/L)), axes = F)
+    logtick.exp(0.001, 10, c(1,2), c(F,T))
+    abline(log(1.16 - 0.84), 1)
+    y <- log(df1$don*mn.val["tn"]*1000)
+    incvec <- y > log(0.1)
+    plot(log(df1$chl*mn.val["chl"])[incvec], y[incvec],
+         pch = 21, col = "grey39", bg = "white",
+         ylab = expression(DON~(mu*g/L)),
+         xlab = expression(Chl~(mu*g/L)), axes = F)
+    logtick.exp(0.001, 10, c(1,2), c(F,T))
+    abline(log(9.22 - 6.39), 1)
+    dev.off()
+
+    stop()
+
+
+    prop.sed.low <- tapply(prop.sed, df1$lakenum, quantile, prob = 0.05)
+    prop.sed.hi <- tapply(prop.sed, df1$lakenum, quantile, prob = 0.95)
+    prop.sed.med <- tapply(prop.sed, df1$lakenum, quantile, prob = 0.5)
+
+    dftemp <- unique(data.frame(df1[, c("lakenum", "flush.rate")]))
+    dftemp <- dftemp[order(dftemp$flush.rate),]
+    plot(dftemp$flush.rate, prop.sed.med,
+         ylim = range(c(prop.sed.low, prop.sed.hi)))
+    segments(dftemp$flush.rate, prop.sed.low,
+             dftemp$flush.rate, prop.sed.hi)
+
+    stop()
 
     credint <- c(0.025, 0.5, 0.975)
+    b <- apply(varout$b, 2, mean)
+    blim <- exp(apply(varout$b, 2, quantile, prob = credint))
+    chl0 <- 10
+    chl.ss <- 1/blim/mn.val["tss"]*chl0^(1-k[1])*mn.val["chl"]^k[1]
 
-    u <- apply(varout$u,2, mean)
+    png(width = 3, height = 2.5, pointsize = 6, units = "in",
+        res = 600, file = "chl.ss.png")
+    par(mar = c(4,4,1,1), mgp = c(2.3,1,0))
+    plot(1:12, chl.ss[2,], ylim= range(chl.ss), type = "n",
+         ylab = expression(Chl/SS~(mu*g/m*g)),
+         xlab = "Month", axes = F)
+    axis(2)
+    axis(1)
+    box(bty = "l")
+    segments(1:12, chl.ss[1,], 1:12, chl.ss[3,], col = "grey39")
+    points(1:12, chl.ss[2,], pch = 21, col = "grey39", bg = "white")
+    dev.off()
 
-    mub <- mean(varout$mub)
-    b <-apply(varout$b, 2, mean)
     k <- apply(varout$k, 2, mean)
     dev.new()
     par(mar = c(4,4,1,1), mfrow = c(3,4))
@@ -338,8 +382,6 @@ tss.explore <- function(df1, matout = NULL,varout = NULL, varout.n = NULL,
     d2n <- apply(varout.n$d2, 2, mean)
     print(range(exp(d2n - varout.n$k[,2]*log(mn.val["tss"]) +
                         log(mn.val["tn"]*1000))))
-    stop()
-
 
     print(quantile(varout.n$k[,2], prob = credint))
 
@@ -415,7 +457,7 @@ tss.explore <- function(df1, matout = NULL,varout = NULL, varout.n = NULL,
     xraw <- chl0 + log(mn.val["chl"])
     plot(xraw, predout[,2],
          ylim = range(predout), type = "n", xlab = expression(Chl~(mu*g/L)),
-         ylab = expression(N/P), axes= F)
+         ylab = "N:P", axes= F)
     polygon(c(xraw, rev(xraw)), c(predout[,1], rev(predout[,3])),
             col = grey.t, border = NA)
     lines(xraw, predout[,2])

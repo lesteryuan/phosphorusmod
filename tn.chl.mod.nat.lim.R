@@ -183,13 +183,14 @@ tn.model <- function(df1, varout = NULL, varout.mo = NULL, runmod = F) {
         return(fit)
     }
 
-    d.n <- apply(varout$d2, 2, mean)
+    d.n <- -(apply(varout$d2, 2, mean) + log(tnsc) - log(docsc) - log(1000))
+    print(range(exp(d.n)))
+    stop()
+    cat("Mean DOC:", docsc, "\n")
     df.n <- data.frame(econum = 1:length(d.n), d.n = as.vector(d.n))
     dftemp <- unique.data.frame(df1[, c("econum", "us.l3code")])
     df.n <- merge(df.n, dftemp, by = "econum")
     save(df.n, file = "df.n.rda")
-    stop()
-
 
     credint <- c(0.025, 0.5, 0.975)
     grey.t <- adjustcolor("grey39", alpha.f = 0.5)
@@ -198,7 +199,8 @@ tn.model <- function(df1, varout = NULL, varout.mo = NULL, runmod = F) {
     d2 <- apply(varout$d2, 2, mean)
 
     muk <- mean(varout$muk)
-    u <- apply(varout$u, 2, mean)
+#    u <- apply(varout$u, 2, mean)
+    u <- u
 
     predout.n <- exp(mud[1])*df1$chl.sc^muk +
         exp(d2a)*df1$doc.sc + exp(u)
@@ -217,7 +219,6 @@ tn.model <- function(df1, varout = NULL, varout.mo = NULL, runmod = F) {
     print(range(exp(d2 - log(docsc) + log(tnsc))))
     print(range(exp(u + log(tnsc))))
 
-
     rmsout <- function(x, y) sqrt(sum((x-y)^2)/length(x))
 
     png(width = 3, height = 2.5, pointsize = 6, units = "in",
@@ -231,6 +232,9 @@ tn.model <- function(df1, varout = NULL, varout.mo = NULL, runmod = F) {
                                            na.rm = T), length = 40)
     print(xnew)
     predout <- matrix(NA, ncol = 3, nrow = 40)
+    print("d2")
+    print(mean(varout$d2[,40]) - log(docsc) + log(tnsc))
+
     for (i in 1:length(xnew)) {
         y <- varout$d2[,40] - log(docsc) + log(tnsc) + xnew[i]
         predout[i,] <- quantile(y, prob = c(0.05, 0.5, 0.95))

@@ -188,12 +188,14 @@ ntumodel <- function(df1, varout = NULL, varout.mo = NULL,
     }
 
     ## merge ecoregion and depth specific coefficients into main data
-    d.p <- apply(varout$d1, 2, mean)
+    d.p <- apply(varout$d1, 2, mean) + log(tpsc)
+    print(range(exp(d.p)))
     dfd <- data.frame(econum = 1:length(d.p), d.p = as.numeric(d.p))
     dftemp <- unique.data.frame(df1[, c("econum", "us.l3code")])
     dfd <- merge(dfd, dftemp, by= "econum")
     print(dfd)
     save(dfd, file = "dfd.rda")
+    print(dfd[order(dfd$d.p),])
     stop()
 
     ## post processing
