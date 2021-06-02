@@ -8,8 +8,30 @@ tnmod <- function(df1, matout = NULL,varout = NULL,
                         runmod = T, xvalid = F) {
 
     print(nrow(df1))
-    df1 <- merge(df1, res.dat[, c("MU..", "flush.rate")], by.x = "lake",
+    df1 <- merge(df1, res.dat[, c("MU..", "flush.rate", "Lat", "Long")], by.x = "lake",
                  by.y = "MU..")
+
+    require(maps)
+    require(mapproj)
+    dfloc <- unique.data.frame(df1[, c("lake", "Lat", "Long")])
+    png(width = 4, height = 4, pointsize = 8, units = "in", res = 600,
+        file = "MOmap.png", bg = "transparent")
+    par(mar = c(1,1,1,1), mfrow = c(1,1))
+    map("state", region = "missouri", proj = "albers", par = c(30,40))
+    pout <- mapproject(dfloc$Long, dfloc$Lat, proj = "")
+    points(pout$x, pout$y, pch = 21, col = "grey39", bg = "black")
+    dev.off()
+
+
+    png(width = 5, height = 3, pointsize =8, units = "in", res = 600,
+        file = "natmap.png")
+    par(mar = c(1,1,1,1), mfrow = c(1,1))
+    map("state", proj = "albers", par = c(30,40))
+    map("state", region = "missouri", proj = "", fill = TRUE, add = TRUE,
+        col = "grey")
+    dev.off()
+
+
     print(nrow(df1))
     print(summary(df1$flush.rate))
 
@@ -44,6 +66,8 @@ tnmod <- function(df1, matout = NULL,varout = NULL,
     print(sum(incvec))
 
     df1 <- df1[!incvec,]
+    print(nrow(df1))
+
 
 
        modstan <- '
@@ -224,13 +248,41 @@ tnmod <- function(df1, matout = NULL,varout = NULL,
     }
 
 
+    grey.t <- adjustcolor("grey", alpha.f = 0.5)
+    mub <- mean(varout$mub)
+    k <- apply(varout$k, 2, mean)
+    png(width = 3, height = 2.5, pointsize = 6, units = "in",
+        res = 600, file = "vssplot.png")
+    par(mar = c(4,4,1,1), mgp = c(2.3,1,0))
+    plot(log(df1$chl*mn.val["chl"]), log(df1$vss*mn.val["tss"]),
+         xlab = expression(Chl~(mu*g/L)),
+         ylab = "VSS (mg/L)", pch = 21, col = "grey39", bg = "white",
+         axes = F)
+    xnew <- seq(min(log(df1$chl)), max(log(df1$chl)), length = 50)
+    xnew.raw <- xnew + log(mn.val["chl"])
+    predout <- matrix(NA, ncol = 3, nrow = length(xnew))
+    for (i in 1:length(xnew)) {
+        y <- varout$mub + log(mn.val["tss"]) +  varout$k[,3]*xnew[i]
+        predout[i,] <- quantile(y, prob = c(0.05, 0.5, 0.95))
+    }
+    logtick.exp(0.001, 10, c(1,2), c(F,F))
+    polygon(c(xnew.raw, rev(xnew.raw)), c(predout[,1], rev(predout[,3])),
+            col = grey.t, border = NA)
+    lines(xnew.raw, predout[,2])
+    dev.off()
+
+    print(k[3])
+    print(mub + log(mn.val["tss"]) - k[3]*log(mn.val["chl"]))
+
+#    abline(mub + log(mn.val["tss"]) - k[3]*log(mn.val["chl"]), k[3])
+    stop()
     dev.new()
     plot(log(dat.merge.all$chl), log(dat.merge.all$ntl.result -
                                          dat.merge.all$no3no2.result),
          col = "grey")
     points(log(df1$chl*mn.val["chl"]), log(1000*(df1$tn-df1$dtn)*mn.val["tn"]),
            pch = 16, cex = 0.5)
-    stop()
+
 
     dftemp <- df1
     dftemp <- dftemp[dftemp$doc > 0.5,]
@@ -333,7 +385,7 @@ tnmod <- function(df1, matout = NULL,varout = NULL,
     return()
 
 }
-varout.test<- tnmod(moi3.all, runmod = T, xvalid = F)
+#varout.test<- tnmod(moi3.all, runmod = T, xvalid = F)
 #matout.mon.d1T.d2Tv <- tnmod(moi3.all, runmod = T, xvalid = T)
-#tnmod(moi3.all, matout = matout.mon.d1T.d20,
-#      varout = varout.mon.d10.d2L, runmod = F, xvalid = F)
+tnmod(moi3.all, matout = matout.mon.d1T.d20,
+      varout = varout.mon.d10.d2L, runmod = F, xvalid = F)
